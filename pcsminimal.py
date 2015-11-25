@@ -10,6 +10,9 @@ under python 3.4.3
 
 Author: Hector Cloud
 Date: Aug 1, 2015
+
+2015-11-18
+  handle network connection exceptions or Baidu PCS server exception.
 """
 
 import os
@@ -31,30 +34,41 @@ class PCSMinimal(PCS):
         # must be absolute path
         dir = os.path.join(self.rootDirRemote, dir)
         dir = dir.replace("\\", "/")
-        response = self.mkdir(dir)
-        # check result
-        if not response.ok:
-            print("cannot create directory: {}".format(dir))
+        try:
+            response = self.mkdir(dir)
+            # check result
+            if not response.ok:
+                print("cannot create directory: {}".format(dir))
+        except Exception as e:
+            print(e)
 
     def directory_deletion(self, dir):
         # must be absolute path
         dir = os.path.join(self.rootDirRemote, dir)
-        response = self.delete(dir)
-        # check result
-        if not response.ok:
-            print("cannot delete directory: {}".format(dir))
+        dir = dir.replace("\\", "/")
+        try:
+            response = self.delete(dir)
+            # check result
+            if not response.ok:
+                print("cannot delete directory: {}".format(dir))
+        except Exception as e:
+            print(e)
 
     def directory_existence(self, dir):
         # must be absolute path
         dir = os.path.join(self.rootDirRemote, dir)
-        response = self.meta(dir)
-        if not response.ok:
-            return False
-        content = response.json()
-        if content["list"][0]["isdir"]:
-            return True
-        else:
-            return False
+        dir = dir.replace("\\", "/")
+        try:
+            response = self.meta(dir)
+            if not response.ok:
+                return False
+            content = response.json()
+            if content["list"][0]["isdir"]:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(e)
 
     def directory_list(self, dir):
         """
@@ -64,41 +78,49 @@ class PCSMinimal(PCS):
         """
         # must be absolute path
         dir = os.path.join(self.rootDirRemote, dir)
-        response = self.list_files(dir, by="name", order="asc")
+        dir = dir.replace("\\", "/")
         result = []
-        if not response.ok:
-            print("cannot list direcotry: {}".format(dir))
-            return result
-        content = response.json()
-        for it in content["list"]:
-            path = it["path"]
-            result.append(path)
-        result.sort()
+        try:
+            response = self.list_files(dir, by="name", order="asc")
+            if not response.ok:
+                print("cannot list direcotry: {}".format(dir))
+                return result
+            content = response.json()
+            for it in content["list"]:
+                path = it["path"]
+                result.append(path)
+            result.sort()
+        except Exception as e:
+            print(e)
         return result
 
     def directory_list2(self, dir):
         """
         :param dir:
         :return: subdirectories and files, like[(rachel, 1), '(happy.mp3, 0), ...]
-        Note: NOT distinguish directory and file at the moment
+        Note: distinguish directory and file
         """
         # must be absolute path
         dir = os.path.join(self.rootDirRemote, dir)
-        response = self.list_files(dir, by="name", order="asc")
+        dir = dir.replace("\\", "/")
         result = []
-        if not response.ok:
-            print("cannot list direcotry: {}".format(dir))
-            return result
-        content = response.json()
-        for it in content["list"]:
-            path = it["path"]
-            isdir = it["isdir"]
-            result.append((path, isdir))
+        try:
+            response = self.list_files(dir, by="name", order="asc")
+            if not response.ok:
+                print("cannot list direcotry: {}".format(dir))
+                return result
+            content = response.json()
+            for it in content["list"]:
+                path = it["path"]
+                isdir = it["isdir"]
+                result.append((path, isdir))
+        except Exception as e:
+            print(e)
         #result.sort()
         return result
 
     def file_upload(self, fn):
-        # I don't know the exact reason why requests are blocked whole night.
+        # I don't know the exact reason why requests are stuck whole night.
         # the workaround is restart uploading after some TIMEOUT.
         # prefer multiprocessing to threading because there is no Thread.terminate()
         size = os.path.getsize(fn)
@@ -117,22 +139,8 @@ class PCSMinimal(PCS):
                 # next run
                 continue
             else:
-                # upload finished, integrity check
-                # must be absolute path
-                _fn = os.path.relpath(fn, self.rootDirLocal)
-                _fn = os.path.join(self.rootDirRemote, _fn)
-                _fn = os.path.normpath(_fn)
-                _fn = _fn.replace("\\", "/")
-                response = self.meta(_fn)
-                if response.ok:
-                    # file size check
-                    content = response.json()
-                    if not content["list"][0]["isdir"]:
-                        if content["list"][0]["size"] == size:
-                            # upload success
-                            break
-                print("info: next round [{}]".format(fn))
-                continue
+                # upload finished
+                break
 
     def file_download(self, fn):
         # download this file until success
@@ -152,26 +160,34 @@ class PCSMinimal(PCS):
 
     def file_existence(self, fn):
         # must be absolute path
-        fn = os.path.join(self.rootDirRemote,fn)
-        response = self.meta(fn)
-        if not response.ok:
-            return False
-        content = response.json()
-        if not content["list"][0]["isdir"]:
-            return True
-        else:
-            return False
+        fn = os.path.join(self.rootDirRemote, fn)
+        fn = fn.replace("\\", "/")
+        try:
+            response = self.meta(fn)
+            if not response.ok:
+                return False
+            content = response.json()
+            if not content["list"][0]["isdir"]:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(e)
 
     def file_deletion(self, fn):
         # must be absolute path
         fn = os.path.join(self.rootDirRemote, fn)
-        response = self.delete(fn)
-        # check result
-        if not response.ok:
-            print("cannot delete directory: {}".format(dir))
+        fn = fn.replace("\\", "/")
+        try:
+            response = self.delete(fn)
+            # check result
+            if not response.ok:
+                print("cannot delete directory: {}".format(fn))
+        except Exception as e:
+            print(e)
 
 
-def helper_file_upload(self, fn):
+def helper_file_upload(self, local):
     """
     upload this file until success
     :param self: PCSMinimal
@@ -180,39 +196,54 @@ def helper_file_upload(self, fn):
     """
     requests.packages.urllib3.disable_warnings()
     # relative path at local then join as remote path
-    abslocal = os.path.join(self.rootDirLocal, fn)
-    fn = os.path.relpath(fn, self.rootDirLocal)
+    abslocal = os.path.join(self.rootDirLocal, local)
+    fn = os.path.relpath(local, self.rootDirLocal)
     fn = os.path.join(self.rootDirRemote, fn)
     fn = fn.replace("\\", "/")
 
     # already uploaded?
-    response = None
     try:
         response = self.meta(fn)
+        if hasattr(response, "ok") and response.ok:
+            content = response.json()
+            if content["list"][0]["size"] == os.path.getsize(abslocal):
+                print("info: already uploaded, skip. [{}]".format(fn))
+                return
     except Exception as e:
         print("info: upload exception [{}]".format(str(e)))
-    if hasattr(response, "ok") and response.ok:
-        content = response.json()
-        if content["list"][0]["size"] == os.path.getsize(abslocal):
-            print("info: already uploaded, skip. [{}]".format(fn))
-            return
 
     print("info: upload start[{}]".format(fn))
-    response = None
     try:
         response = self.upload(fn, open(abslocal, "rb"), ondup="overwrite")
+        if (not hasattr(response, "ok")) or (not response.ok):
+            print("error: upload [{}]".format(fn))
+            # try again until success
+            print("info: upload again [{}]".format(fn))
+            helper_file_upload(self, abslocal)
+            return
+        else:
+            content = response.json()
+            # size or md5
+            size = content["size"]
+            # file existence and size checking
+            size = os.path.getsize(abslocal)
+            response = self.meta(fn)
+            if hasattr(response, "ok") and response.ok:
+                # file size check
+                content = response.json()
+                if not content["list"][0]["isdir"]:
+                    if content["list"][0]["size"] == size:
+                        # upload success
+                        print("info: upload finish [{}]".format(fn))
+                        return
+            # next round until success
+            helper_file_upload(self, abslocal)
+            return
     except Exception as e:
         print("info: upload exception [{}]".format(str(e)))
-    if (not hasattr(response, "ok")) or (not response.ok):
-        print("error: upload [{}]".format(fn))
-        # try again until success
-        print("info: upload again [{}]".format(fn))
+        # next round until success
         helper_file_upload(self, abslocal)
-    else:
-        content = response.json()
-        # size or md5
-        size = content["size"]
-        print("info: upload finish [{}]".format(fn))
+        return
 
 
 def helper_file_download(self, fn):
@@ -230,21 +261,25 @@ def helper_file_download(self, fn):
     print("info: download start [{}]".format(fn))
 
     # file size
-    response = None
+    size = None
     try:
         response = self.meta(fn)
+        if (not hasattr(response, "ok")) or (not response.ok):
+            # try again until success
+            helper_file_download(self, fn)
+            return
+        content = response.json()
+        size = content["list"][0]["size"]
     except Exception as e:
         print("info: download exception [{}]".format(str(e)))
-
-    if (not hasattr(response, "ok")) or (not response.ok):
+        # try again until success
         helper_file_download(self, fn)
         return
 
-    content = response.json()
-    size = content["list"][0]["size"]
-
     relremote = os.path.relpath(fn, self.rootDirRemote)
     fnlocal = os.path.join(self.rootDirLocal, relremote)
+    if os.name == 'nt':
+        fnlocal = fnlocal.replace("/", os.sep)
 
     # already downloaded
     if os.path.exists(fnlocal):
@@ -252,7 +287,6 @@ def helper_file_download(self, fn):
             print("info: already downloaded, skip. [{}]".format(fn))
             return
 
-    response = None
     try:
         # Range: start-end
         start = 0
@@ -267,20 +301,27 @@ def helper_file_download(self, fn):
             end = start+(1*1024*1024)-1
         headers = {'Range': 'bytes={}-{}'.format(str(start), str(end))}
         response = self.download(fn, headers=headers)
-    except Exception as e:
-        print("info: download exception [{}]".format(str(e)))
-    if (not hasattr(response, "ok")) or (not response.ok):
-        print("error: download not ok.Rang:{}-{}".format(str(start), str(end)))
-        # continue downloading
-        helper_file_download(self, fn)
-    else:
-        content = response._content
-        mode = "ab" if os.path.exists(fnlocal) else "wb"
-        with open(fnlocal, mode) as fd:
-            fd.write(content)
-        if size == os.path.getsize(fnlocal):
-            print("info: download finish [{}]".format(fn))
-        else:
-            print("info: download more data")
+
+        if (not hasattr(response, "ok")) or (not response.ok):
+            print("error: download not ok. Rang:{}-{}".format(str(start), str(end)))
             # continue downloading
             helper_file_download(self, fn)
+            return
+        else:
+            content = response._content
+            mode = "ab" if os.path.exists(fnlocal) else "wb"
+            with open(fnlocal, mode) as fd:
+                fd.write(content)
+            if size == os.path.getsize(fnlocal):
+                print("info: download finish [{}]".format(fn))
+                return
+            else:
+                print("info: download more data")
+                # continue downloading
+                helper_file_download(self, fn)
+                return
+    except Exception as e:
+        print("error: download exception [{}]".format(str(e)))
+        # try again until success
+        helper_file_download(self, fn)
+        return

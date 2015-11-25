@@ -235,8 +235,6 @@ if __name__ == "__main__":
                 break
         # download sequentially
         files.sort()
-        # make a backup for later use, for example, integrity check
-        #files_backup = list(files)
 
         # download by thread pool, size is 5*cpu_core at the moment
         threadpool = []
@@ -267,7 +265,7 @@ if __name__ == "__main__":
 
         # integrity check. Are all files downloaded? Are their size is 1M except last one?
         for fn in filenames:
-            print("info: check file {}".format(fn))
+            #print("info: check file {}".format(fn))
             chunks = []
             for chunk in file2merge:
                 if (fn == chunk[:-5]) and re.fullmatch(r"\.\d{4}", chunk[-5:]):
