@@ -4,7 +4,7 @@
 Baidu Yun utility, upload to and download from Baidu PCS
 which is located at http://pan.baidu.com.
 
-thanks to bypy and api.py(https://github.com/ly0/baidupcsapi).
+thanks to bypy(https://github.com/houtianze/bypy) and api.py(https://github.com/ly0/baidupcsapi).
 
 under python 3.4.3
 
@@ -58,7 +58,7 @@ def file2download(clouddrive, abspathRemote):
         return _files
 
     _files = helper_file2download(abspathRemote)
-    with open("pcstest_oauth", "w") as fd:
+    with open("byby", "w") as fd:
         _files = json.dumps(_files)
         fd.write(_files)
     return 0
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     {0} download => from [remote dir] to [local dir]
     {0} list => show subdirs and files
     {0} delete => delete remote dir|file
-    Note: remote dir is relative to /apps/pcstest_oauth
+    Note: remote dir is relative to /apps/byby
     """.format(os.path.basename(sys.argv[0]))
 
     if len(sys.argv) < 2:
@@ -228,10 +228,10 @@ if __name__ == "__main__":
                 continue
             else:
                 # IPC by file
-                with open("pcstest_oauth", "r") as fd:
+                with open("bypy", "r") as fd:
                     _files = fd.read()
                     files = json.loads(_files)
-                os.remove("pcstest_oauth")
+                os.remove("bypy")
                 break
         # download sequentially
         files.sort()
@@ -320,8 +320,11 @@ if __name__ == "__main__":
         dirRemote = os.path.join(clouddrive.rootDirRemote, dirRemote)
         dirRemote = os.path.normpath(dirRemote)
         dirRemote = dirRemote.replace("\\", "/")
-        # special to "/apps/pcstest_oauth"
-        if dirRemote == "/apps/pcstest_oauth":
+        # special to root directory at cloud side. e.g. "/apps/bypy"
+        rootDirRemote = PCSMinimal.rootDirRemote
+        rootDirRemote = os.path.normpath(rootDirRemote)
+        rootDirRemote = rootDirRemote.replace("\\", "/")
+        if dirRemote == rootDirRemote:
             paths = clouddrive.directory_list(dirRemote)
             for path in paths:
                 clouddrive.directory_deletion(path)
