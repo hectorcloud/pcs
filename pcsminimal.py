@@ -23,7 +23,7 @@ from pcs import *
 class PCSMinimal(PCS):
     # actually is working directory
     # variable name 'workdir' more appropriate
-    rootDirRemote = "/apps/bypy/"
+    rootDirRemote = "/apps/pcstest_oauth/"
     # depends on user input
     rootDirLocal = "."
 
