@@ -35,3 +35,6 @@ please type above url in web browser and input access_token: 23.9d3041673d0f981a
 663977831-23832
 
 remote dir: 1118pcs
+
+####version 1.0
+account pcstest_oauth can be used untill this version.
