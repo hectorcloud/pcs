@@ -58,7 +58,7 @@ def file2download(clouddrive, abspathRemote):
         return _files
 
     _files = helper_file2download(abspathRemote)
-    with open("byby", "w") as fd:
+    with open("bypy", "w") as fd:
         _files = json.dumps(_files)
         fd.write(_files)
     return 0
