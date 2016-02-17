@@ -26,6 +26,7 @@ import datetime
 from pcsminimal import *
 import requests.packages.urllib3
 
+
 def file2download(clouddrive, abspathRemote):
     """
     :param clouddrive: PCSMinimal
@@ -72,6 +73,7 @@ if __name__ == "__main__":
     requests.packages.urllib3.disable_warnings()
 
     usage = """
+    {0} token => get access token
     {0} upload => from [local dir] to [remote dir]
     {0} download => from [remote dir] to [local dir]
     {0} list => show subdirs and files
@@ -83,12 +85,35 @@ if __name__ == "__main__":
         print(usage)
         exit(0)
 
-    oauth_url = "https://openapi.baidu.com/oauth/2.0/authorize?response_type=token&client_id=L6g70tBRRIXLsY0Z3HwKqlRE&redirect_uri=oob&force_login=1&scope=basic+netdisk"
-    print(oauth_url)
-    access_token = input("please type above url in web browser and input access_token: ")
-    clouddrive = PCSMinimal(access_token)
-
     operation = sys.argv[1]
+
+    # http://developer.baidu.com/wiki/index.php?title=docs/pcs/guide/token_authorize
+    # https://github.com/houtianze/bypy
+    if operation == "token":
+        print("please copy url below to browser address to get Authorization Code")
+        print("https://openapi.baidu.com/oauth/2.0/authorize?response_type=code&client_id=q8WE4EpCsau1oS0MplgMKNBn&redirect_uri=oob&force_login=1&scope=basic+netdisk")
+        auth_code = input("Auth Code: ")
+        GaeUrl = 'https://bypyoauth.appspot.com'
+        OpenShiftUrl = 'https://bypy-tianze.rhcloud.com'
+        HerokuUrl = 'https://bypyoauth.herokuapp.com'
+        GaeRedirectUrl = GaeUrl + '/auth'
+        OpenShiftRedirectUrl = OpenShiftUrl + '/auth'
+        HerokuRedirectUrl = HerokuUrl + '/auth'
+        kwargs = {'timeout': 60.0, 'verify': False, 'headers': {'User-Agent': 'netdisk;5.2.7.2;PC;PC-Windows;6.2.9200;WindowsBaiduYunGuanJia'}, 'params': {'code': '', 'redirect_uri': 'oob'}}
+        kwargs['params']['code'] = auth_code
+        for url in [HerokuRedirectUrl, OpenShiftRedirectUrl, GaeRedirectUrl]:
+            r = requests.request('GET', url, **kwargs)
+            if r.status_code == 200:
+                access_token = r.json()['access_token']
+                print('access token is below and will be expired 30 days later.')
+                print(access_token)
+                exit(0)
+        else:
+            print("cannot get access token, please try later.")
+            exit(1)
+
+    access_token = input("please input access_token: ")
+    clouddrive = PCSMinimal(access_token)
 
     if operation == "upload":
         dirLocal = input("local dir: ")
