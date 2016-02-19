@@ -23,6 +23,8 @@ import json
 import multiprocessing
 import time
 import datetime
+import base64
+import inspect
 from pcsminimal import *
 import requests.packages.urllib3
 
@@ -63,6 +65,30 @@ def file2download(clouddrive, abspathRemote):
         _files = json.dumps(_files)
         fd.write(_files)
     return 0
+
+
+# get physical memory size in bytes
+def memory_size():
+    totalMem = 0
+    isWindows = sys.platform.startswith("win")
+    isLinux = sys.platform.startswith("linux")
+
+    if isWindows:
+        process = os.popen('wmic memorychip get capacity')
+        result = process.read()
+        process.close()
+        totalMem = 0
+        for m in result.split("  \r\n")[1:-1]:
+            totalMem += int(m)
+
+    if isLinux:
+        meminfo = open('/proc/meminfo').read()
+        matched = re.search(r'^MemTotal:\s+(\d+)', meminfo)
+        if matched:
+            totalMem_kB = int(matched.groups()[0])
+            totalMem = totalMem_kB * 1024
+
+    return totalMem
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
@@ -107,12 +133,30 @@ if __name__ == "__main__":
                 access_token = r.json()['access_token']
                 print('access token is below and will be expired 30 days later.')
                 print(access_token)
+                # save it
+                script_path = os.path.abspath(inspect.stack()[0][1])
+                script_dir = os.path.dirname(script_path)
+                token_file = os.path.join(script_dir, "access_token.txt")
+                with open(token_file, "w") as fd:
+                    fd.write(access_token)
+                print("access token has been saved into file below.")
+                print(token_file)
                 exit(0)
         else:
             print("cannot get access token, please try later.")
             exit(1)
 
-    access_token = input("please input access_token: ")
+    # access_token = input("please input access_token: ")
+    # read access token from file
+    access_token = None
+    script_path = os.path.abspath(inspect.stack()[0][1])
+    script_dir = os.path.dirname(script_path)
+    token_file = os.path.join(script_dir, "access_token.txt")
+    if not os.path.exists(token_file):
+        print("please get token fist")
+        exit(1)
+    with open(token_file, "r") as fd:
+        access_token = fd.read()
     clouddrive = PCSMinimal(access_token)
 
     if operation == "upload":
@@ -129,7 +173,7 @@ if __name__ == "__main__":
         rootDirLocal = os.path.abspath(dirLocal)
         clouddrive.rootDirLocal = rootDirLocal
         # list all files in directory and create directory in Baidu Yun
-        file2upload = []
+        files2upload = []
         for root, dirs, files in os.walk(rootDirLocal):
             for dir in dirs:
                 # exclude hidden dirs
@@ -152,53 +196,88 @@ if __name__ == "__main__":
                 if re.search(r"\.\d{4}$", file):
                     continue
                 file = os.path.join(root, file)
-                file2upload.append(file)
+                # add to upload list
+                files2upload.append(file)
 
-        def upload(file2upload, mutex):
+        def upload(chunks2upload, mutex):
             while True:
-                file = None
+                chunk = None
                 mutex.acquire()
-                if file2upload:
-                    file = file2upload[0]
-                    file2upload[:] = file2upload[1:]
+                if chunks2upload:
+                    chunk = chunks2upload[0]
+                    chunks2upload[:] = chunks2upload[1:]
                 else:
-                    file = None
+                    chunk = None
                 mutex.release()
-                if file:
-                    # upload this file
-                    # chunk size is 1M
-                    size = os.path.getsize(file)
-                    counter = (size+1*1024*1024-1)//(1*1024*1024)
-                    for i in range(counter):
-                        with open(file, "rb") as fdlocal:
-                            fdlocal.seek(i*1*1024*1024, 0)
-                            data = fdlocal.read(1*1024*1024)
-                            # chunk filename, append four digits, like good.mp4.0001
-                            # large as 10G
-                            suffix = "." + ("0"*(4-len(str(i)))) + str(i)
-                            fnchunk = file+suffix
-                            # create this chunk file
-                            with open(fnchunk, "wb") as fdremote:
-                                fdremote.write(data)
-                            # upload this chunk file
-                            clouddrive.file_upload(fnchunk)
-                            # delete this chunk file
-                            os.remove(fnchunk)
+                if chunk:
+                    # upload this chunk of size 1M
+                    # split suffix, e.g. '.0000'
+                    abspath = chunk[:-5]
+                    offset = int(chunk[-4:])
+                    # avoid non ascii characters
+                    dirname, filename = os.path.split(abspath)
+                    # on Windows 'mbcs' means 'utf-8'
+                    sysencode = sys.getfilesystemencoding()
+                    isWindows = sys.platform.startswith("win")
+                    if isWindows and sysencode == 'mbcs':
+                        sysencode = 'utf-8'
+                    filename = filename.encode(sysencode, 'surrogateescape')
+                    filename = base64.b64encode(filename, altchars=b"-_")
+                    filename = filename.decode()
+                    chunk_backup = chunk
+                    chunk = os.path.join(dirname, filename+"."+str(offset).zfill(4))
+                    with open(abspath, "rb") as fdlocal:
+                        fdlocal.seek(offset*1*1024*1024, 0)
+                        data = fdlocal.read(1*1024*1024)
+                        # create this chunk file
+                        with open(chunk, "wb") as fdremote:
+                            fdremote.write(data)
+                    # upload this chunk file
+                    # process creation may fail due to not enough memory
+                    try:
+                        clouddrive.file_upload(chunk)
+                    except Exception as e:
+                        print(e)
+                        os.remove(chunk)
+                        # return this chunk to task queue, then exit
+                        mutex.acquire()
+                        chunks2upload.insert(0, chunk_backup)
+                        mutex.release()
+                        return
+                    # delete this chunk file
+                    os.remove(chunk)
                 else:
-                    # no file left to upload
+                    # no chunk left to upload
                     return
-        # upload by thread pool, size is 5*cpu_cores at the moment
+
+        # split into chunks of size 1M
+        chunks2upload = []
+        for file in files2upload:
+            size = os.path.getsize(file)
+            for chunk in range((size+1*1024*1024-1) // (1*1024*1024)):
+                chunk = file + "." + str(chunk).zfill(4)
+                chunks2upload.append(chunk)
+
+        # upload by thread pool, size can up to memory_size/16MB at the moment
         threadpool = []
         mutex = threading.Lock()
         cpu_cores = multiprocessing.cpu_count()
-        # at least 6 workers
-        for i in range(max(5*cpu_cores, 6)):
-            th = threading.Thread(target=upload, args=(file2upload, mutex))
+        mem_size = memory_size()
+        # at least ? workers
+        for i in range(max(cpu_cores, mem_size//(16*1024**2))):
+            th = threading.Thread(target=upload, args=(chunks2upload, mutex))
             th.start()
             threadpool.append(th)
-        # wait files are uploaded
+        # wait until chunks are uploaded
         for th in threadpool:
             th.join()
+        # some worker thread failed when all others finished
+        if len(chunks2upload):
+            upload(chunks2upload, mutex)
+        # check again
+        if len(chunks2upload):
+            print("upload failed.")
+            exit(1)
 
     if operation == "download":
         dirRemote = input("remote dir: ")
@@ -234,7 +313,15 @@ if __name__ == "__main__":
                     _abspathRemote = None
                 mutex.release()
                 if _abspathRemote:
-                    clouddrive.file_download(_abspathRemote)
+                    try:
+                        clouddrive.file_download(_abspathRemote)
+                    except Exception as e:
+                        # return to chunk queue then exit
+                        print(e)
+                        mutex.acquire()
+                        files.insert(0, _abspathRemote)
+                        mutex.release()
+                        return
                 else:
                     return
 
@@ -261,18 +348,26 @@ if __name__ == "__main__":
         # download sequentially
         files.sort()
 
-        # download by thread pool, size is 5*cpu_core at the moment
+        # download by thread pool, size can up to memory_size/16MB at the moment
         threadpool = []
         mutex = threading.Lock()
         cpu_cores = multiprocessing.cpu_count()
-        # at least 6 workers
-        for i in range(max(5*cpu_cores, 6)):
+        mem_size = memory_size()
+        # at least ? workers
+        for i in range(max(cpu_cores, mem_size//(16*1024**2))):
             th = threading.Thread(target=download, args=(files, mutex))
             th.start()
             threadpool.append(th)
         # wait download completed
         for th in threadpool:
             th.join()
+        # some worker thread failed when all others finished
+        if len(files):
+            download(files, mutex)
+        # check again
+        if len(files):
+            print("download failed.")
+            exit(1)
         print("info: download finished")
 
         # list all files in directory
@@ -283,14 +378,13 @@ if __name__ == "__main__":
                 file2merge.append(file)
         file2merge.sort()
         # recover file name by strip '.0001' ending
-        filenames = [fn[:-5] for fn in file2merge]
+        filenames = [fn[:-5] for fn in file2merge if re.fullmatch(r"\.\d{4}", fn[-5:])]
         filenames = set(filenames)
         filenames = list(filenames)
         filenames.sort()
 
         # integrity check. Are all files downloaded? Are their size is 1M except last one?
         for fn in filenames:
-            #print("info: check file {}".format(fn))
             chunks = []
             for chunk in file2merge:
                 if (fn == chunk[:-5]) and re.fullmatch(r"\.\d{4}", chunk[-5:]):
@@ -301,7 +395,7 @@ if __name__ == "__main__":
             for idx in range(len(chunks)-1):
                 chunk = chunks[idx]
                 if int(chunk[-4:]) != idx:
-                    suffix = "." + ("0"*(4-len(str(idx)))) + str(idx)
+                    suffix = "." + str(idx).zfill(4)
                     print("error: {} not exists".format(chunk[:-5] + suffix))
                     exit(1)
                 if os.path.getsize(chunk) != 1*1024*1024:
@@ -311,7 +405,7 @@ if __name__ == "__main__":
             idx = len(chunks) - 1
             chunk = chunks[idx]
             if int(chunk[-4:]) != idx:
-                suffix = "." + ("0"*(4-len(str(idx)))) + str(idx)
+                suffix = "." + str(idx).zfill(4)
                 print("error: {} not exists".format(chunk[:-5] + suffix))
                 exit(1)
 
@@ -328,6 +422,18 @@ if __name__ == "__main__":
                             fd.close()
                     # remove chunk file due to merged
                     os.remove(chunk)
+            # filename base64 decode
+            dirname, filename = os.path.split(fn)
+            filename = filename.encode()
+            filename = base64.b64decode(filename, altchars=b"-_")
+            # on Windows 'mbcs' means 'utf-8'
+            sysencode = sys.getfilesystemencoding()
+            isWindows = sys.platform.startswith("win")
+            if isWindows and sysencode == 'mbcs':
+                sysencode = 'utf-8'
+            filename = filename.decode(sysencode, 'surrogateescape')
+            new_fn = os.path.join(dirname, filename)
+            os.rename(fn, new_fn)
 
     if operation == "list":
         dirRemote = input("remote dir: ")
