@@ -78,7 +78,8 @@ def memory_size():
         result = process.read()
         process.close()
         totalMem = 0
-        for m in result.split("  \r\n")[1:-1]:
+        result = re.sub(r"[\r\n]", r" ", result)
+        for m in result.split()[1:]:
             totalMem += int(m)
 
     if isLinux:
@@ -204,10 +205,7 @@ if __name__ == "__main__":
                 chunk = None
                 mutex.acquire()
                 if chunks2upload:
-                    chunk = chunks2upload[0]
-                    chunks2upload[:] = chunks2upload[1:]
-                else:
-                    chunk = None
+                    chunk = chunks2upload.pop(0)
                 mutex.release()
                 if chunk:
                     # upload this chunk of size 1M
@@ -264,7 +262,8 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        for i in range(max(cpu_cores, mem_size//(16*1024**2))):
+        worker_no = min(max(cpu_cores, mem_size//(16*1024**2)), 64)
+        for i in range(worker_no):
             th = threading.Thread(target=upload, args=(chunks2upload, mutex))
             th.start()
             threadpool.append(th)
@@ -307,10 +306,7 @@ if __name__ == "__main__":
                 _abspathRemote = None
                 mutex.acquire()
                 if files:
-                    _abspathRemote = files[0]
-                    files[:] = files[1:]
-                else:
-                    _abspathRemote = None
+                    _abspathRemote = files.pop(0)
                 mutex.release()
                 if _abspathRemote:
                     try:
@@ -354,7 +350,8 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        for i in range(max(cpu_cores, mem_size//(16*1024**2))):
+        worker_no = min(max(cpu_cores, mem_size//(16*1024**2)), 64)
+        for i in range(worker_no):
             th = threading.Thread(target=download, args=(files, mutex))
             th.start()
             threadpool.append(th)
