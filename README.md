@@ -3,6 +3,8 @@ Personal Cloud Storage provided by Baidu
 
 This utility is to upload|download to|from Baidu PCS.
 
+---
+
 ###example:
 ####\#python main.py token
 please copy url below to browser address to get Authorization Code
@@ -34,6 +36,8 @@ remote dir: .
 
 ####\#python main.py delete
 remote dir: 1118pcs
+
+---
 
 ####version 1.0
 account pcstest_oauth can be used untill this version.
