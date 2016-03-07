@@ -24,6 +24,8 @@ import multiprocessing
 import time
 import datetime
 import base64
+import tarfile
+import hashlib
 import inspect
 from pcsminimal import *
 import requests.packages.urllib3
@@ -114,6 +116,11 @@ if __name__ == "__main__":
 
     operation = sys.argv[1]
 
+    # on Windows 'mbcs' means 'utf-8'
+    sysencode = sys.getfilesystemencoding()
+    isWindows = sys.platform.startswith("win")
+    if isWindows and sysencode == 'mbcs':
+        sysencode = 'utf-8'
     # http://developer.baidu.com/wiki/index.php?title=docs/pcs/guide/token_authorize
     # https://github.com/houtianze/bypy
     if operation == "token":
@@ -160,9 +167,18 @@ if __name__ == "__main__":
         access_token = fd.read()
     clouddrive = PCSMinimal(access_token)
 
+    # archive all the files|directories so that they're all in single file
+    # another benefit is let Python handle non-ascii character if file|directory name
+    # archived file is named as <sha1>.tar for integrity after downloading
+    #
+    # but limited by file size in OS
     if operation == "upload":
-        dirLocal = input("local dir: ")
+        dirLocal = input("local dir|file: ")
         dirRemote = input("remote dir: ")
+        # check non-ascii character existence of remote directory
+        if re.search(r"[^0-9a-zA-Z-_/=.]", dirRemote):
+            print("please use usual ascii character when specifying remote directory")
+            exit(0)
         # reset working directory even though named as 'rootDirXxx'
         rootDirRemote = os.path.join(clouddrive.rootDirRemote, dirRemote)
         # normalize path
@@ -172,33 +188,70 @@ if __name__ == "__main__":
         if not clouddrive.directory_existence(rootDirRemote):
             clouddrive.directory_creation(rootDirRemote)
         rootDirLocal = os.path.abspath(dirLocal)
+        # if os.path.isfile(rootDirLocal):
+        #    rootDirLocal,
         clouddrive.rootDirLocal = rootDirLocal
-        # list all files in directory and create directory in Baidu Yun
+        # list all files in directory
         files2upload = []
         for root, dirs, files in os.walk(rootDirLocal):
-            for dir in dirs:
-                # exclude hidden dirs
-                fullpath = os.path.join(root, dir)
-                if "/." in fullpath:
-                    continue
-                # if not exists in Baidu Yun, create this directory
-                absdir = os.path.join(root, dir)
-                reldir = os.path.relpath(absdir, rootDirLocal)
-                if not clouddrive.directory_existence(reldir):
-                    clouddrive.directory_creation(reldir)
             for file in files:
-                # exclude hidden dirs
-                if "/." in root:
-                    continue
-                # exclude hidden files
-                if file.startswith("."):
-                    continue
+                file = os.path.join(root, file)
                 # exclude undeleted chunk file last time
                 if re.search(r"\.\d{4}$", file):
+                    os.remove(file)
                     continue
-                file = os.path.join(root, file)
+                # exclude hidden dirs and files
+                if r"/." in file or r"\." in file:
+                    continue
                 # add to upload list
                 files2upload.append(file)
+        # relative path for archiving operation
+        if os.path.isfile(rootDirLocal):
+            rootDirLocal, x = os.path.split(rootDirLocal)
+        os.chdir(rootDirLocal)
+        files2upload = [os.path.relpath(file, rootDirLocal) for file in files2upload]
+        # archive each file then delete it
+        # each file will be archived separately.
+        # Benefit is to preserve non-ascii file|dir name in archive.
+        # archive itself is named by its SHA1 whose characters are ascii.
+        # not all into a single file due to file size limit in OS
+        for idx, file in enumerate(files2upload, start=0):
+            _dir, _base = os.path.split(file)
+            # already archived such as last round upload
+            if not re.search(r"[^0-9a-fA-F]", _base):
+                # SHA1 of this file
+                sha1 = hashlib.sha1()
+                with open(file, "rb") as fd:
+                    for chunk in iter(lambda: fd.read(1*1024*1024), b''):
+                        sha1.update(chunk)
+                tarname = sha1.hexdigest()
+                # confirm
+                if tarname == _base:
+                    # move to top level in order to handle non-ascii character in file|dir name
+                    os.rename(file, tarname)
+                    files2upload[idx] = tarname
+                    continue
+
+            sha1 = hashlib.sha1()
+            # sha1 of original file name as temporary name
+            sha1.update(file.encode(sysencode, 'surrogateescape'))
+            tmpname = sha1.hexdigest()
+            tar = tarfile.open(tmpname, "w")
+            tar.add(file)
+            tar.close()
+            os.remove(file)
+            # sha1 of file content as file name
+            sha1 = hashlib.sha1()
+            with open(tmpname, "rb") as fd:
+                for chunk in iter(lambda: fd.read(1*1024*1024), b''):
+                    sha1.update(chunk)
+            tarname = sha1.hexdigest()
+            # at top level
+            os.rename(tmpname, tarname)
+            files2upload[idx] = tarname
+        # absolute path
+        files2upload = [os.path.join(rootDirLocal, file) for file in files2upload]
+        files2upload_backup = list(files2upload)
 
         def upload(chunks2upload, mutex):
             while True:
@@ -212,38 +265,25 @@ if __name__ == "__main__":
                     # split suffix, e.g. '.0000'
                     abspath = chunk[:-5]
                     offset = int(chunk[-4:])
-                    # avoid non ascii characters
-                    dirname, filename = os.path.split(abspath)
-                    # on Windows 'mbcs' means 'utf-8'
-                    sysencode = sys.getfilesystemencoding()
-                    isWindows = sys.platform.startswith("win")
-                    if isWindows and sysencode == 'mbcs':
-                        sysencode = 'utf-8'
-                    filename = filename.encode(sysencode, 'surrogateescape')
-                    filename = base64.b64encode(filename, altchars=b"-_")
-                    filename = filename.decode()
-                    chunk_backup = chunk
-                    chunk = os.path.join(dirname, filename+"."+str(offset).zfill(4))
                     with open(abspath, "rb") as fdlocal:
                         fdlocal.seek(offset*1*1024*1024, 0)
-                        data = fdlocal.read(1*1024*1024)
+                        _data = fdlocal.read(1*1024*1024)
                         # create this chunk file
                         with open(chunk, "wb") as fdremote:
-                            fdremote.write(data)
+                            fdremote.write(_data)
                     # upload this chunk file
                     # process creation may fail due to not enough memory
                     try:
                         clouddrive.file_upload(chunk)
                     except Exception as e:
                         print(e)
-                        os.remove(chunk)
                         # return this chunk to task queue, then exit
                         mutex.acquire()
-                        chunks2upload.insert(0, chunk_backup)
+                        chunks2upload.insert(0, chunk)
                         mutex.release()
-                        return
-                    # delete this chunk file
-                    os.remove(chunk)
+                    finally:
+                        # delete this chunk file
+                        os.remove(chunk)
                 else:
                     # no chunk left to upload
                     return
@@ -277,6 +317,12 @@ if __name__ == "__main__":
         if len(chunks2upload):
             print("upload failed.")
             exit(1)
+        # untar each file
+        for file in files2upload_backup:
+            tar = tarfile.open(file, "r")
+            tar.extractall()
+            tar.close()
+            os.remove(file)
 
     if operation == "download":
         dirRemote = input("remote dir: ")
@@ -407,6 +453,7 @@ if __name__ == "__main__":
                 exit(1)
 
         # merge chunk files
+        os.chdir(clouddrive.rootDirLocal)
         for fn in filenames:
             print("info: merge file {}".format(fn))
             for chunk in file2merge:
@@ -419,18 +466,21 @@ if __name__ == "__main__":
                             fd.close()
                     # remove chunk file due to merged
                     os.remove(chunk)
-            # filename base64 decode
+            # integrity check by SHA1
+            # file name is SHA1
             dirname, filename = os.path.split(fn)
-            filename = filename.encode()
-            filename = base64.b64decode(filename, altchars=b"-_")
-            # on Windows 'mbcs' means 'utf-8'
-            sysencode = sys.getfilesystemencoding()
-            isWindows = sys.platform.startswith("win")
-            if isWindows and sysencode == 'mbcs':
-                sysencode = 'utf-8'
-            filename = filename.decode(sysencode, 'surrogateescape')
-            new_fn = os.path.join(dirname, filename)
-            os.rename(fn, new_fn)
+            sha1 = hashlib.sha1()
+            with open(fn, 'rb') as fd:
+                for chunk in iter(lambda: fd.read(1*1024*1024), b''):
+                    sha1.update(chunk)
+            sha1 = sha1.hexdigest()
+            if filename != sha1:
+                print("{fn} fails SHA1 integrity check".format(fn=fn))
+            # extract tar
+            tar = tarfile.open(fn, "r")
+            tar.extractall()
+            tar.close()
+            os.remove(fn)
 
     if operation == "list":
         dirRemote = input("remote dir: ")
