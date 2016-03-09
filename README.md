@@ -5,6 +5,26 @@ This utility is to upload|download to|from Baidu PCS.
 
 ---
 
+###basic thought:
+
+upload each file chunk by chunk whose size is 1M. 
+
+download each chunk and merge them together when all chunks are downloaded.
+
+tar each file(Note: not tar all the files together, otherwise a very file will be introduced) to handle non-ascii character indirectly. Python can contain directory and file information in tar file. Just name each tar file by the SHA1 of that file.
+
+very simple encryption introduced. It's symmetric.
+
+one example:
+
+plan to upload directory /home/pcs/videos to cloud server. subdirectories are /home/pcs/videos/Oscar and /home/pcs/videos/India. each subdirectory contains two videos. suppose they are /home/pcs/videos/Oscar/a.mp4 and /home/pcs/videos/b.mp4 and /home/pcs/videos/India/1.mp4 and /home/pcs/videos/India/2.mp4. the fifth video is /home/pcs/videos/alpha.mp4.
+
+tar each file under /home/pcs/videos: /home/pcs/videos/<a.mp4.tar> and /home/pcs/videos/<b.mp4.tar> and /home/pcs/videos/<1.mp4.tar> and /home/pcs/videos/<2.mp4.tar> and /home/pcs/videos/<alpha.mp4.tar>. <x.mp4.tar> is the SHA1 of the tar file self.
+
+
+
+---
+
 ###example:
 ####\#python main.py token
 please copy url below to browser address to get Authorization Code
