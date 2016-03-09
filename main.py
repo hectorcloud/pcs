@@ -93,6 +93,14 @@ def memory_size():
 
     return totalMem
 
+
+# obfuscate bytes data stream
+def obfuscatebytes(_data):
+    # XOR with 1010-0101
+    obdata = [bytes([byte ^ 0xA5]) for byte in _data]
+    obdata = b''.join(obdata)
+    return obdata
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()
 
@@ -265,12 +273,23 @@ if __name__ == "__main__":
                     # split suffix, e.g. '.0000'
                     abspath = chunk[:-5]
                     offset = int(chunk[-4:])
-                    with open(abspath, "rb") as fdlocal:
-                        fdlocal.seek(offset*1*1024*1024, 0)
-                        _data = fdlocal.read(1*1024*1024)
-                        # create this chunk file
-                        with open(chunk, "wb") as fdremote:
-                            fdremote.write(_data)
+                    # avoid 'too many file handles'
+                    mutex.acquire()
+                    fdlocal = open(abspath, "rb")
+                    fdlocal.seek(offset*1*1024*1024, 0)
+                    _data = fdlocal.read(1*1024*1024)
+                    fdlocal.close()
+                    mutex.release()
+                    # create this chunk file
+                    fdremote = open(chunk, "wb")
+                    # simple encryption
+                    # do NOT use following line. Memory is insufficient.
+                    # _data = obfuscatebytes(_data)
+                    for byte in _data:
+                        byte = bytes([byte ^ 0xA5])
+                        fdremote.write(byte)
+                    fdremote.close()
+                    del _data
                     # upload this chunk file
                     # process creation may fail due to not enough memory
                     try:
@@ -302,7 +321,7 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(16*1024**2)), 64)
+        worker_no = min(max(cpu_cores, mem_size//(32*1024**2)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=upload, args=(chunks2upload, mutex))
             th.start()
@@ -396,7 +415,7 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(16*1024**2)), 64)
+        worker_no = min(max(cpu_cores, mem_size//(32*1024**2)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=download, args=(files, mutex))
             th.start()
@@ -461,9 +480,10 @@ if __name__ == "__main__":
                     with open(chunk, "rb") as fd:
                         data = fd.read()
                         fd.close()
-                        with open(fn, "ab") as fd:
-                            fd.write(data)
-                            fd.close()
+                        # reverse encryption
+                        data = obfuscatebytes(data)
+                        with open(fn, "ab") as _fd:
+                            _fd.write(data)
                     # remove chunk file due to merged
                     os.remove(chunk)
             # integrity check by SHA1

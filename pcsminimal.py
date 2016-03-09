@@ -20,6 +20,7 @@ import multiprocessing
 import time
 from pcs import *
 
+
 class PCSMinimal(PCS):
     # actually is working directory
     # variable name 'workdir' more appropriate
@@ -30,17 +31,17 @@ class PCSMinimal(PCS):
     def __init__(self, access_token):
         PCS.__init__(self, access_token)
 
-    def directory_creation(self, dir):
-        # must be absolute path
-        dir = os.path.join(self.rootDirRemote, dir)
-        dir = dir.replace("\\", "/")
-        try:
-            response = self.mkdir(dir)
-            # check result
-            if not response.ok:
-                print("cannot create directory: {}".format(dir))
-        except Exception as e:
-            print(e)
+    def directory_creation(self, _dir):
+        while True:
+            p = multiprocessing.Process(target=helper_directory_creation, args=(self, _dir))
+            p.start()
+            # estimate is 60 seconds
+            p.join(timeout=60)
+            if p.is_alive():
+                p.terminate()
+                time.sleep(2)
+            else:
+                break
 
     def directory_deletion(self, dir):
         # must be absolute path
@@ -187,6 +188,21 @@ class PCSMinimal(PCS):
             print(e)
 
 
+# socket may be blocked forever if it's waiting data from peer
+def helper_directory_creation(self, _dir):
+    # requests.packages.urllib3.disable_warnings()
+    # must be absolute path
+    _dir = os.path.join(self.rootDirRemote, _dir)
+    _dir = _dir.replace("\\", "/")
+    try:
+        response = self.mkdir(_dir)
+        # check result
+        if not response.ok:
+            print("cannot create directory: {_dir}".format(_dir=_dir))
+    except Exception as e:
+        print(e)
+
+
 def helper_file_upload(self, local):
     """
     upload this file until success
@@ -308,7 +324,7 @@ def helper_file_download(self, fn):
             helper_file_download(self, fn)
             return
         else:
-            content = response._content
+            content = response.content
             mode = "ab" if os.path.exists(fnlocal) else "wb"
             with open(fnlocal, mode) as fd:
                 fd.write(content)
