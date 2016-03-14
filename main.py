@@ -95,10 +95,11 @@ def memory_size():
 
 
 # obfuscate bytes data stream
-def obfuscatebytes(_data):
+def obfuscatebytes(data):
+    data = list(data)
     # XOR with 1010-0101
-    obdata = [bytes([byte ^ 0xA5]) for byte in _data]
-    obdata = b''.join(obdata)
+    obdata = [byte ^ 0xA5 for byte in data]
+    obdata = bytes(obdata)
     return obdata
 
 if __name__ == "__main__":
@@ -201,18 +202,23 @@ if __name__ == "__main__":
         clouddrive.rootDirLocal = rootDirLocal
         # list all files in directory
         files2upload = []
+        # unfinished of last round
+        files2delete = []
         for root, dirs, files in os.walk(rootDirLocal):
             for file in files:
                 file = os.path.join(root, file)
-                # exclude undeleted chunk file last time
+                # exclude unfinished chunk file last time
                 if re.search(r"\.\d{4}$", file):
-                    os.remove(file)
+                    files2delete.append(file)
                     continue
                 # exclude hidden dirs and files
                 if r"/." in file or r"\." in file:
                     continue
                 # add to upload list
                 files2upload.append(file)
+        # delete unwanted files
+        for file in files2delete:
+            os.remove(file)
         # relative path for archiving operation
         if os.path.isfile(rootDirLocal):
             rootDirLocal, x = os.path.split(rootDirLocal)
@@ -224,7 +230,7 @@ if __name__ == "__main__":
         # archive itself is named by its SHA1 whose characters are ascii.
         # not all into a single file due to file size limit in OS
         for idx, file in enumerate(files2upload, start=0):
-            _dir, _base = os.path.split(file)
+            _base = os.path.basename(file)
             # already archived such as last round upload
             if not re.search(r"[^0-9a-fA-F]", _base):
                 # SHA1 of this file
@@ -259,6 +265,7 @@ if __name__ == "__main__":
             files2upload[idx] = tarname
         # absolute path
         files2upload = [os.path.join(rootDirLocal, file) for file in files2upload]
+        files2upload.sort()
         files2upload_backup = list(files2upload)
 
         def upload(chunks2upload, mutex):
@@ -273,24 +280,15 @@ if __name__ == "__main__":
                     # split suffix, e.g. '.0000'
                     abspath = chunk[:-5]
                     offset = int(chunk[-4:])
-                    # avoid 'too many file handles'
-                    mutex.acquire()
                     fdlocal = open(abspath, "rb")
                     fdlocal.seek(offset*1*1024*1024, 0)
                     _data = fdlocal.read(1*1024*1024)
                     fdlocal.close()
-                    mutex.release()
-                    # create this chunk file
+                    _data = obfuscatebytes(_data)
                     fdremote = open(chunk, "wb")
-                    # simple encryption
-                    # do NOT use following line. Memory is insufficient.
-                    # _data = obfuscatebytes(_data)
-                    for byte in _data:
-                        byte = bytes([byte ^ 0xA5])
-                        fdremote.write(byte)
+                    fdremote.write(_data)
                     fdremote.close()
-                    del _data
-                    # upload this chunk file
+                    # upload this chunk of file
                     # process creation may fail due to not enough memory
                     try:
                         clouddrive.file_upload(chunk)
@@ -321,7 +319,7 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(32*1024**2)), 64)
+        worker_no = min(max(cpu_cores, mem_size//(40*1024**2)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=upload, args=(chunks2upload, mutex))
             th.start()
@@ -415,7 +413,7 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(32*1024**2)), 64)
+        worker_no = min(max(cpu_cores, mem_size//(40*1024**2)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=download, args=(files, mutex))
             th.start()

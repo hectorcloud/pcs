@@ -136,7 +136,7 @@ class PCSMinimal(PCS):
                 # upload not finished yet
                 p.terminate()
                 time.sleep(2)
-                print("info: next round [{}]".format(fn))
+                print("info: next round [{fn}]".format(fn=fn))
                 # next run
                 continue
             else:
@@ -223,24 +223,24 @@ def helper_file_upload(self, local):
         if hasattr(response, "ok") and response.ok:
             content = response.json()
             if content["list"][0]["size"] == os.path.getsize(abslocal):
-                print("info: already uploaded, skip. [{}]".format(fn))
+                print("info: already uploaded, skip. [{fn}]".format(fn=fn))
                 return
     except Exception as e:
-        print("info: upload exception [{}]".format(str(e)))
+        print("error: upload [{fn}] exception [{e}]".format(fn=fn, e=str(e)))
 
-    print("info: upload start[{}]".format(fn))
+    print("info: upload start[{fn}]".format(fn=fn))
     try:
         response = self.upload(fn, open(abslocal, "rb"), ondup="overwrite")
         if (not hasattr(response, "ok")) or (not response.ok):
-            print("error: upload [{}]".format(fn))
+            print("error: upload [{fn}]".format(fn=fn))
             # try again until success
-            print("info: upload again [{}]".format(fn))
+            print("info: upload again [{fn}]".format(fn=fn))
             helper_file_upload(self, abslocal)
             return
         else:
             content = response.json()
             # size or md5
-            size = content["size"]
+            # size = content["size"]
             # file existence and size checking
             size = os.path.getsize(abslocal)
             response = self.meta(fn)
@@ -256,7 +256,7 @@ def helper_file_upload(self, local):
             helper_file_upload(self, abslocal)
             return
     except Exception as e:
-        print("info: upload exception [{}]".format(str(e)))
+        print("error: upload [{fn}] exception [{e}]".format(fn=fn, e=str(e)))
         # next round until success
         helper_file_upload(self, abslocal)
         return
