@@ -15,7 +15,7 @@ tar each file(Note: not tar all the files together, otherwise a very file will b
 
 very simple encryption introduced. It's symmetric.
 
-one example:
+**one example**:
 
 plan to upload directory `/home/pcs/videos` to cloud server. All files under this directory and subdirectories are as follows:
 
