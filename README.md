@@ -19,13 +19,15 @@ one example:
 
 plan to upload directory `/home/pcs/videos` to cloud server. All files under this directory and subdirectories are as follows:
 
+* /home/pcs/videos/alpha.mp4
+
 * /home/pcs/videos/Oscar/a.mp4
 
 * /home/pcs/videos/Oscar/b.mp4
 
-*/home/pcs/videos/India/1.mp4
+* /home/pcs/videos/India/1.mp4
 
-* and `/home/pcs/videos/India`. each subdirectory contains two videos. suppose they are `/home/pcs/videos/Oscar/a.mp4` and `/home/pcs/videos/b.mp4` and `/home/pcs/videos/India/1.mp4` and `/home/pcs/videos/India/2.mp4`. the fifth video is `/home/pcs/videos/alpha.mp4`.
+* /home/pcs/videos/India/12.mp4
 
 Change working directory to `/home/pcs/videos` and tar each file, the following tarfiles are generated:
 
