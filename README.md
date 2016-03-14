@@ -47,6 +47,12 @@ upload each file chunk by chunk and encrypt each chunk just before uploading.
 
 ---
 
+###misc:
+
+One day Baidu may not provide|support its API which is used in this project. What will we do then? One possible way is to exploit mail services provided by `mail.163.com` and others. We can upload each chunk of each file as attachment when sending email by SMTP and download each chunk of each file when receiving eamil by IMAP.
+
+---
+
 ###usage example:
 ####\#python main.py token
 please copy url below to browser address to get Authorization Code
