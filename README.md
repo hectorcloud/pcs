@@ -11,7 +11,7 @@ upload each file chunk by chunk whose size is 1M.
 
 download each chunk and merge them together when all chunks are downloaded.
 
-tar each file(Note: not tar all the files together, otherwise a very file will be introduced) to handle non-ascii character indirectly. Python can contain directory and file information in tar file. Just name each tar file by the SHA1 of that file.
+tar each file(Note: not tar all the files together, otherwise a very file will be introduced) to handle non ascii character in directory and filename indirectly. Python can contain directory and file name in tar file and handle non ascii characters, so we do need to take additional effort to deal with non ascii characters in directory and filename. The name of each tarfile is its SHA1.
 
 very simple encryption introduced. It's symmetric.
 
