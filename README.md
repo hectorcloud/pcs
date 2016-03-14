@@ -27,19 +27,19 @@ plan to upload directory `/home/pcs/videos` to cloud server. All files under thi
 
 * /home/pcs/videos/India/1.mp4
 
-* /home/pcs/videos/India/12.mp4
+* /home/pcs/videos/India/2.mp4
 
 Change working directory to `/home/pcs/videos` and tar each file, the following tarfiles are generated:
+
+* /home/pcs/videos/`<alpha.mp4.tar>`
 
 * /home/pcs/videos/`<a.mp4.tar>`
 
 * /home/pcs/videos/`<b.mp4.tar>`  
 
-* /home/pcs/videos/`1.mp4.tar>`
+* /home/pcs/videos/`<1.mp4.tar>`
 
 * /home/pcs/videos/`<2.mp4.tar>`
-
-* /home/pcs/videos/`<alpha.mp4.tar>`
 
 _Note: `<xxx.tar>` is the SHA1 of the tarfile itself._
 
