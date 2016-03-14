@@ -65,3 +65,10 @@ account pcstest_oauth can be used untill this version.
 ####version 2.0
 Another way to get access token. Save it for convenience.
 Support non ascii character in file name, not directory name yet.
+
+####version 2.1
+Tar each file into a standalone tarfile. Because tarfile contains directory and filename and handle non ascii characters automatically, we don't need to handle non ascii characters in directory and filename by ourselves.
+
+Do not tar all the files into a single tarfile. Very big files(many GB) are not supported well on some operationg systems.
+
+Integrity check is helped by SHA1. SHA1 is the filename of each tarfile when storing in cloud. In addition to SHA1, simple encryption is also introduced.
