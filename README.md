@@ -31,13 +31,13 @@ Change working directory to `/home/pcs/videos` and tar each file, the following 
 
 * /home/pcs/videos/`<alpha.mp4.tar>`
 
-**Note: `<xxx.tar>` is the SHA1 of the tarfile itself.**
+_Note: `<xxx.tar>` is the SHA1 of the tarfile itself._
 
 upload each file chunk by chunk and encrypt each chunk just before uploading.
 
 ---
 
-###example:
+###usage example:
 ####\#python main.py token
 please copy url below to browser address to get Authorization Code
 
