@@ -319,7 +319,8 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(40*1024**2)), 64)
+        # reserve 20% of memory for system, each worker takes about 64M memory
+        worker_no = min(max(cpu_cores, (mem_size*8)//(64*1024**2*10)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=upload, args=(chunks2upload, mutex))
             th.start()
@@ -413,7 +414,8 @@ if __name__ == "__main__":
         cpu_cores = multiprocessing.cpu_count()
         mem_size = memory_size()
         # at least ? workers
-        worker_no = min(max(cpu_cores, mem_size//(40*1024**2)), 64)
+        # reserve 20% of memory for system, each worker takes about 64M memory
+        worker_no = min(max(cpu_cores, (mem_size*8)//(64*1024**2*10)), 64)
         for i in range(worker_no):
             th = threading.Thread(target=download, args=(files, mutex))
             th.start()
