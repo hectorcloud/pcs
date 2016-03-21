@@ -487,7 +487,7 @@ if __name__ == "__main__":
         for fn in filenames:
             print("info: merge file {}".format(fn))
             for chunk in file2merge:
-                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-5:]):
+                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-7:]):
                     with open(chunk, "rb") as fd:
                         data = fd.read()
                         fd.close()

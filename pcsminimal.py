@@ -265,8 +265,7 @@ def helper_file_upload(self, local):
 
 def helper_file_download(self, fn):
     """
-    1M at a time
-    Range: bytes=0-99 <= 100 bytes
+    one complete file at a time
     :param self: PCSMinimal
     :param fn:
     :return:
@@ -299,14 +298,6 @@ def helper_file_download(self, fn):
         fnlocal = fnlocal.replace("/", os.sep)
     # normalize local path
     fnlocal = os.path.normpath(fnlocal)
-
-    # debug
-    """
-    print("size in cloud: ", size)
-    print("size in local: ", os.path.getsize(fnlocal))
-    print("fnlocal:", fnlocal)
-    print("rootDirLocal: ", self.rootDirLocal)
-    """
 
     # already downloaded
     if os.path.exists(fnlocal):
