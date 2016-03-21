@@ -18,6 +18,7 @@ Date: Aug 1, 2015
 import os
 import multiprocessing
 import time
+import urllib.parse
 from pcs import *
 
 
@@ -117,7 +118,7 @@ class PCSMinimal(PCS):
                 result.append((path, isdir))
         except Exception as e:
             print(e)
-        #result.sort()
+        # result.sort()
         return result
 
     def file_upload(self, fn):
@@ -274,7 +275,7 @@ def helper_file_download(self, fn):
     # absolute path at remote
     fn = os.path.join(self.rootDirRemote, fn)
     fn = fn.replace("\\", "/")
-    print("info: download start [{}]".format(fn))
+    print("info: download start [{fn}]".format(fn=fn))
 
     # file size
     size = None
@@ -296,6 +297,16 @@ def helper_file_download(self, fn):
     fnlocal = os.path.join(self.rootDirLocal, relremote)
     if os.name == 'nt':
         fnlocal = fnlocal.replace("/", os.sep)
+    # normalize local path
+    fnlocal = os.path.normpath(fnlocal)
+
+    # debug
+    """
+    print("size in cloud: ", size)
+    print("size in local: ", os.path.getsize(fnlocal))
+    print("fnlocal:", fnlocal)
+    print("rootDirLocal: ", self.rootDirLocal)
+    """
 
     # already downloaded
     if os.path.exists(fnlocal):
@@ -304,35 +315,45 @@ def helper_file_download(self, fn):
             return
 
     try:
-        # Range: start-end
-        start = 0
-        if os.path.exists(fnlocal):
-            start = os.path.getsize(fnlocal)
-        else:
-            start = 0
-        end = size - 1
-        if size - start <= 1*1024*1024:
-            end = size - 1
-        else:
-            end = start+(1*1024*1024)-1
-        headers = {'Range': 'bytes={}-{}'.format(str(start), str(end))}
+        # Range: start-end. Do NOT use 'Range:' anymore because it's not supported well
+        headers = {
+            'Host': 'd.pcs.baidu.com',
+            'Connection': 'keep-alive',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:36.0) Gecko/20100101 Firefox/36.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+        }
         response = self.download(fn, headers=headers)
 
+        if response.status_code == 302:
+            location = response.headers.get('location', None)
+            o = urllib.parse.urlparse(location)
+            headers['Host'] = o.hostname
+            response = requests.get(location, headers=headers)
+
         if (not hasattr(response, "ok")) or (not response.ok):
-            print("error: download not ok. Rang:{}-{}".format(str(start), str(end)))
+            print("error: download not ok. [{fn}]".format(fn=fn))
             # continue downloading
             helper_file_download(self, fn)
             return
         else:
             content = response.content
-            mode = "ab" if os.path.exists(fnlocal) else "wb"
-            with open(fnlocal, mode) as fd:
-                fd.write(content)
-            if size == os.path.getsize(fnlocal):
+            # debug of requests
+            """
+            response.status_code
+            response.headers
+            response.url
+            response.history
+            response.request.headers
+            """
+            if len(content) == size:
+                with open(fnlocal, 'wb') as fd:
+                    fd.write(content)
                 print("info: download finish [{}]".format(fn))
                 return
             else:
-                print("info: download more data")
+                print("info: download next round [{fn}]".format(fn=fn))
                 # continue downloading
                 helper_file_download(self, fn)
                 return

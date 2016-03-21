@@ -60,15 +60,13 @@ class BaseClass(object):
                 # SSLError: hostname 'c.pcs.baidu.com'
                 # doesn't match u'pcs.baidu.com'
                 # 所以禁用 ssl 证书验证
-                response = requests.post(api, data=data, verify=False,
-                                         **kwargs)
+                response = requests.post(api, data=data, verify=False, **kwargs)
             else:
                 self._remove_empty_items(files)
-                response = requests.post(api, files=files, verify=False,
-                                         **kwargs)
+                response = requests.post(api, files=files, verify=False, **kwargs)
         else:
             api = url
-            response = requests.get(api, params=params, verify=False, **kwargs)
+            response = requests.get(api, params=params, verify=False, allow_redirects=False, **kwargs)
         return response
 
 

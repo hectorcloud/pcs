@@ -11,6 +11,7 @@ under python 3.4.3
 references:
   http://developer.baidu.com/wiki/index.php?title=docs/pcs/guide/usage_example
   http://developer.baidu.com/wiki/index.php?title=docs/pcs/rest/file_data_apis_list
+  http://developer.baidu.com/wiki/index.php?title=docs/pcs/rest/file_data_apis_list#.E4.B8.8B.E8.BD.BD.E5.8D.95.E4.B8.AA.E6.96.87.E4.BB.B6
 Author: Hector Cloud
 Date: Aug 1, 2015
 """
@@ -29,6 +30,9 @@ import hashlib
 import inspect
 from pcsminimal import *
 import requests.packages.urllib3
+
+# upload file chunk by chunk. 64K bytes per chunk
+chunksize = 64*1024
 
 
 def file2download(clouddrive, abspathRemote):
@@ -208,7 +212,7 @@ if __name__ == "__main__":
             for file in files:
                 file = os.path.join(root, file)
                 # exclude unfinished chunk file last time
-                if re.search(r"\.\d{4}$", file):
+                if re.search(r"\.\d{6}$", file):
                     files2delete.append(file)
                     continue
                 # exclude hidden dirs and files
@@ -276,13 +280,13 @@ if __name__ == "__main__":
                     chunk = chunks2upload.pop(0)
                 mutex.release()
                 if chunk:
-                    # upload this chunk of size 1M
-                    # split suffix, e.g. '.0000'
-                    abspath = chunk[:-5]
-                    offset = int(chunk[-4:])
+                    # upload this chunk of size 'chunksize'
+                    # split suffix, e.g. '.000000'
+                    abspath = chunk[:-7]
+                    offset = int(chunk[-6:])
                     fdlocal = open(abspath, "rb")
-                    fdlocal.seek(offset*1*1024*1024, 0)
-                    _data = fdlocal.read(1*1024*1024)
+                    fdlocal.seek(offset*chunksize, 0)
+                    _data = fdlocal.read(chunksize)
                     fdlocal.close()
                     _data = obfuscatebytes(_data)
                     fdremote = open(chunk, "wb")
@@ -309,8 +313,8 @@ if __name__ == "__main__":
         chunks2upload = []
         for file in files2upload:
             size = os.path.getsize(file)
-            for chunk in range((size+1*1024*1024-1) // (1*1024*1024)):
-                chunk = file + "." + str(chunk).zfill(4)
+            for chunk in range((size+chunksize-1) // chunksize):
+                chunk = file + "." + str(chunk).zfill(6)
                 chunks2upload.append(chunk)
 
         # upload by thread pool, size can up to memory_size/16MB at the moment
@@ -359,6 +363,13 @@ if __name__ == "__main__":
         # mkdir if not exists
         if not os.path.exists(rootDirLocal):
             os.mkdir(rootDirLocal)
+
+        # check if a single file, unfinished in last download
+        """
+        if os.path.isfile(rootDirLocal):
+            rootDirLocal = os.path.dirname(rootDirLocal)
+            clouddrive.rootDirLocal = rootDirLocal
+        """
 
         # thread to download
         def download(files, mutex):
@@ -439,36 +450,36 @@ if __name__ == "__main__":
                 file = os.path.join(root, file)
                 file2merge.append(file)
         file2merge.sort()
-        # recover file name by strip '.0001' ending
-        filenames = [fn[:-5] for fn in file2merge if re.fullmatch(r"\.\d{4}", fn[-5:])]
+        # recover file name by strip '.000001' ending
+        filenames = [fn[:-7] for fn in file2merge if re.fullmatch(r"\.\d{6}", fn[-7:])]
         filenames = set(filenames)
         filenames = list(filenames)
         filenames.sort()
 
-        # integrity check. Are all files downloaded? Are their size is 1M except last one?
+        # integrity check. Are all files downloaded? Are their size is 'chunksize' except last one?
         for fn in filenames:
             chunks = []
             for chunk in file2merge:
-                if (fn == chunk[:-5]) and re.fullmatch(r"\.\d{4}", chunk[-5:]):
+                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-5:]):
                     chunks.append(chunk)
             # each chunk is 1M except last one for each file
             # cardinality is continuous
             chunks.sort()
             for idx in range(len(chunks)-1):
                 chunk = chunks[idx]
-                if int(chunk[-4:]) != idx:
-                    suffix = "." + str(idx).zfill(4)
-                    print("error: {} not exists".format(chunk[:-5] + suffix))
+                if int(chunk[-6:]) != idx:
+                    suffix = "." + str(idx).zfill(6)
+                    print("error: {} not exists".format(chunk[:-7] + suffix))
                     exit(1)
-                if os.path.getsize(chunk) != 1*1024*1024:
-                    print("error: size of {} not equal 1M".format(chunk))
+                if os.path.getsize(chunk) != chunksize:
+                    print("error: size of {} not equal {}".format(chunk, chunksize))
                     exit(1)
             # last chunk
             idx = len(chunks) - 1
             chunk = chunks[idx]
-            if int(chunk[-4:]) != idx:
-                suffix = "." + str(idx).zfill(4)
-                print("error: {} not exists".format(chunk[:-5] + suffix))
+            if int(chunk[-6:]) != idx:
+                suffix = "." + str(idx).zfill(6)
+                print("error: {} not exists".format(chunk[:-7] + suffix))
                 exit(1)
 
         # merge chunk files
@@ -476,7 +487,7 @@ if __name__ == "__main__":
         for fn in filenames:
             print("info: merge file {}".format(fn))
             for chunk in file2merge:
-                if (fn == chunk[:-5]) and re.fullmatch(r"\.\d{4}", chunk[-5:]):
+                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-5:]):
                     with open(chunk, "rb") as fd:
                         data = fd.read()
                         fd.close()
