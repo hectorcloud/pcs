@@ -31,8 +31,8 @@ import inspect
 from pcsminimal import *
 import requests.packages.urllib3
 
-# upload file chunk by chunk. 64K bytes per chunk
-chunksize = 128*1024
+# upload file chunk by chunk. 240K bytes per chunk
+chunksize = 240*1024
 
 
 def file2download(clouddrive, abspathRemote):
@@ -100,7 +100,6 @@ def memory_size():
 
 # obfuscate bytes data stream
 def obfuscatebytes(data):
-    data = list(data)
     # XOR with 1010-0101
     obdata = [byte ^ 0xA5 for byte in data]
     obdata = bytes(obdata)
@@ -456,24 +455,28 @@ if __name__ == "__main__":
         filenames = list(filenames)
         filenames.sort()
 
-        # integrity check. Are all files downloaded? Are their size is 'chunksize' except last one?
+        # integrity check. Are all files downloaded? Are their size is equal except last one?
+        # do NOT use 'chunksize' anymore because it's always changing.
         for fn in filenames:
             chunks = []
             for chunk in file2merge:
                 if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-7:]):
                     chunks.append(chunk)
-            # each chunk is of size 'chunksize' except last one for each file
+            # each chunk is of same size except last one for each file
             # cardinality is continuous
             chunks.sort()
+            sizes = set()
             for idx in range(len(chunks)-1):
                 chunk = chunks[idx]
                 if int(chunk[-6:]) != idx:
                     suffix = "." + str(idx).zfill(6)
                     print("error: {} not exists".format(chunk[:-7] + suffix))
                     exit(1)
-                if os.path.getsize(chunk) != chunksize:
-                    print("error: size of {} not equal {}".format(chunk, chunksize))
-                    exit(1)
+                sizes.add(os.path.getsize(chunk))
+            # all except last one equal?
+            if len(sizes) > 1:
+                print("error: chunks of file[{fn}] not equal(already excluded last one)".format(fn=fn))
+                exit(1)
             # last chunk
             idx = len(chunks) - 1
             chunk = chunks[idx]

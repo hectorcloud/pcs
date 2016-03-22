@@ -66,7 +66,7 @@ class BaseClass(object):
                 response = requests.post(api, files=files, verify=False, **kwargs)
         else:
             api = url
-            response = requests.get(api, params=params, verify=False, allow_redirects=False, **kwargs)
+            response = requests.get(api, params=params, verify=False, allow_redirects=True, **kwargs)
         return response
 
 

@@ -276,21 +276,20 @@ def helper_file_download(self, fn):
     fn = fn.replace("\\", "/")
     print("info: download start [{fn}]".format(fn=fn))
 
-    # file size
+    # how many bytes to download?
     size = None
-    try:
-        response = self.meta(fn)
-        if (not hasattr(response, "ok")) or (not response.ok):
-            # try again until success
-            helper_file_download(self, fn)
-            return
-        content = response.json()
-        size = content["list"][0]["size"]
-    except Exception as e:
-        print("info: download exception [{}]".format(str(e)))
-        # try again until success
-        helper_file_download(self, fn)
-        return
+    while True:
+        try:
+            response = self.meta(fn)
+            if (not hasattr(response, "ok")) or (not response.ok):
+                # try again until success
+                continue
+            content = response.json()
+            size = content["list"][0]["size"]
+            break
+        except Exception as e:
+            print("info: download exception [{e}]".format(e=str(e)))
+            continue
 
     relremote = os.path.relpath(fn, self.rootDirRemote)
     fnlocal = os.path.join(self.rootDirLocal, relremote)
@@ -302,54 +301,39 @@ def helper_file_download(self, fn):
     # already downloaded
     if os.path.exists(fnlocal):
         if size == os.path.getsize(fnlocal):
-            print("info: already downloaded, skip. [{}]".format(fn))
+            print("info: download finished last round. [{fn}]".format(fn=fn))
             return
 
-    try:
-        # Range: start-end. Do NOT use 'Range:' anymore because it's not supported well
-        headers = {
-            'Host': 'd.pcs.baidu.com',
-            'Connection': 'keep-alive',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:36.0) Gecko/20100101 Firefox/36.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-        }
-        response = self.download(fn, headers=headers)
+    while True:
+        try:
+            # Range: start-end
+            # Do NOT use 'Range:' anymore because it's not supported well
+            response = self.download(fn)
 
-        if response.status_code == 302:
-            location = response.headers.get('location', None)
-            o = urllib.parse.urlparse(location)
-            headers['Host'] = o.hostname
-            response = requests.get(location, headers=headers)
-
-        if (not hasattr(response, "ok")) or (not response.ok):
-            print("error: download not ok. [{fn}]".format(fn=fn))
-            # continue downloading
-            helper_file_download(self, fn)
-            return
-        else:
-            content = response.content
-            # debug of requests
-            """
-            response.status_code
-            response.headers
-            response.url
-            response.history
-            response.request.headers
-            """
-            if len(content) == size:
-                with open(fnlocal, 'wb') as fd:
-                    fd.write(content)
-                print("info: download finish [{}]".format(fn))
-                return
-            else:
-                print("info: download next round [{fn}]".format(fn=fn))
+            if (not hasattr(response, "ok")) or (not response.ok):
+                print("error: download not ok. [{fn}]".format(fn=fn))
                 # continue downloading
-                helper_file_download(self, fn)
-                return
-    except Exception as e:
-        print("error: download exception [{}]".format(str(e)))
-        # try again until success
-        helper_file_download(self, fn)
-        return
+                continue
+            else:
+                content = response.content
+                # requests
+                """
+                response.status_code
+                response.headers
+                response.url
+                response.history
+                response.request.headers
+                """
+                if len(content) == size:
+                    with open(fnlocal, 'wb') as fd:
+                        fd.write(content)
+                    print("info: download finished [{fn}]".format(fn=fn))
+                    return
+                else:
+                    print("info: download next round [{fn}]".format(fn=fn))
+                    # try again until success
+                    continue
+        except Exception as e:
+            print("error: download exception [{e}]".format(e=str(e)))
+            # try again until success
+            continue
