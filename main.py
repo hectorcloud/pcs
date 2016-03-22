@@ -32,7 +32,7 @@ from pcsminimal import *
 import requests.packages.urllib3
 
 # upload file chunk by chunk. 64K bytes per chunk
-chunksize = 64*1024
+chunksize = 128*1024
 
 
 def file2download(clouddrive, abspathRemote):
@@ -460,9 +460,9 @@ if __name__ == "__main__":
         for fn in filenames:
             chunks = []
             for chunk in file2merge:
-                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-5:]):
+                if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-7:]):
                     chunks.append(chunk)
-            # each chunk is 1M except last one for each file
+            # each chunk is of size 'chunksize' except last one for each file
             # cardinality is continuous
             chunks.sort()
             for idx in range(len(chunks)-1):
