@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 upload file by sending email
@@ -42,7 +42,7 @@ sender = {
 }
 receiver = {
     # http://stackoverflow.com/questions/27797705/python-login-163-mail-server
-    'Email': ***'@163.com',
+    'Email': '***@163.com',
     'IMAP': 'imap.163.com',
     'Password': '***'
 }
@@ -477,7 +477,7 @@ def _delete_inbox_mail(_prefix):
     :param prefix: subject prefix
     :return:
     """
-    # cannot delete mail in '客户端删信'
+    # cannot delete mail in '?????'
     for mb in ['INBOX', '&dcVr0mWHTvZZOQ-']:
         M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
         M.login(receiver['Email'], receiver['Password'])
