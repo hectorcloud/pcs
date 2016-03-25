@@ -380,8 +380,6 @@ def download():
     4. merge each chunk
     :return:
     """
-    time_started = datetime.datetime.now()
-
     subjects = subjects_inbox()
     prefixes = []
     for _subject in subjects:
@@ -413,6 +411,7 @@ def download():
 
     # how many bytes to download?
     total_size = 0
+    time_started = datetime.datetime.now()
 
     M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
     # M.debug = 7 #debug
