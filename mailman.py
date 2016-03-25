@@ -542,7 +542,7 @@ def _delete_sent_mail():
                 msg = parser.parsestr(header_data)
                 hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
                 _subject = str(hdr)
-                print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject))
+                print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject).encode())
                 uid2delete.append(uid.decode())
             for _uid in uid2delete:
                 M.uid('store', _uid, '+FLAGS', '\\Deleted')
