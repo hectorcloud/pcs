@@ -380,6 +380,11 @@ def download():
     4. merge each chunk
     :return:
     """
+    time_started = datetime.datetime.now()
+    cwd = os.getcwd()
+    # how many bytes to download?
+    total_size = 0
+
     subjects = subjects_inbox()
     prefixes = []
     for _subject in subjects:
@@ -390,76 +395,67 @@ def download():
     prefixes = list(set(prefixes))
     prefixes.sort()
 
-    print("")
-    print("prefixes are as follows:")
-    for p in prefixes:
-        print(p)
-    print("")
-    _prefix = input("choose what to download: ")
-    if _prefix not in prefixes:
-        print("your selection isn't correct")
-        return
-    _dir = _prefix
-    if os.path.isfile(_dir):
-        print("cannot create [{_dir}] because a file has the same name".format(_dir=dir))
-    if not os.path.exists(_dir):
-        os.mkdir(_dir)
+    for _prefix in prefixes:
+        _dir = os.path.join(cwd, _prefix)
+        if os.path.isfile(_dir):
+            print("cannot create [{_dir}] because a file has the same name".format(_dir=_prefix))
+            exit(1)
+        if not os.path.exists(_dir):
+            os.mkdir(_dir)
 
-    # change working directory
-    _dir = os.path.abspath(_dir)
-    os.chdir(_dir)
+        # change working directory
+        os.chdir(_dir)
 
-    # how many bytes to download?
-    total_size = 0
-    time_started = datetime.datetime.now()
-
-    M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
-    # M.debug = 7 #debug
-    M.login(receiver['Email'], receiver['Password'])
-    rv, data = M.select(mailbox='INBOX')
-    if rv == 'OK':
-        rv, data = M.uid('search', None, 'ALL')
-        if rv != 'OK':
-            print("there is no message in INBOX")
-            return
-        uids = data[0]
-        for uid in uids.split():
-            rv, _data = M.uid('fetch', uid, '(RFC822)')
+        M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
+        # M.debug = 7 #debug
+        M.login(receiver['Email'], receiver['Password'])
+        rv, data = M.select(mailbox='INBOX')
+        if rv == 'OK':
+            rv, data = M.uid('search', None, 'ALL')
             if rv != 'OK':
-                print("ERROR getting message {uid}".format(uid=str(uid)))
-                return
-            mail = email.message_from_bytes(_data[0][1])
-            hdr = email.header.make_header(email.header.decode_header(mail['Subject']))
-            _subject = str(hdr)
-            if not _subject.startswith('[' + _prefix + ']'):
+                print("there is no message in INBOX")
                 continue
-            for part in mail.walk():
-                if part.get_content_maintype() == 'multipart':
+            uids = data[0]
+            for uid in uids.split():
+                rv, _data = M.uid('fetch', uid, '(RFC822)')
+                if rv != 'OK':
+                    print("ERROR getting message {uid}".format(uid=str(uid)))
                     continue
-                if part.get('Content-Disposition') is None:
+                mail = email.message_from_bytes(_data[0][1])
+                hdr = email.header.make_header(email.header.decode_header(mail['Subject']))
+                _subject = str(hdr)
+                if not _subject.startswith('[' + _prefix + ']'):
                     continue
-                filename = part.get_filename()
-                # decode filename
-                t = email.header.decode_header(filename)
-                filename = t[0][0].decode(t[0][1])
-                if filename:
-                    fp = open(filename, 'wb')
-                    data = part.get_payload(decode=True)
-                    data = obfuscatebytes(data)
-                    fp.write(data)
-                    fp.close()
-                    total_size += len(data)
-                    print("downloaded: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
-        M.close()
-    else:
-        print("ERROR: unable to open INBOX. " + rv)
-    M.logout()
+                for part in mail.walk():
+                    if part.get_content_maintype() == 'multipart':
+                        continue
+                    if part.get('Content-Disposition') is None:
+                        continue
+                    filename = part.get_filename()
+                    # decode filename
+                    t = email.header.decode_header(filename)
+                    filename = t[0][0].decode(t[0][1])
+                    if filename:
+                        fp = open(filename, 'wb')
+                        data = part.get_payload(decode=True)
+                        data = obfuscatebytes(data)
+                        fp.write(data)
+                        fp.close()
+                        total_size += len(data)
+                        print("download finished: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
+            M.close()
+        else:
+            print("ERROR: unable to open INBOX. " + rv)
+        M.logout()
 
-    # delete mail in INBOX
-    _delete_inbox_mail(_prefix)
+        # delete mail in INBOX
+        _delete_inbox_mail(_prefix)
 
     # merge chunks
-    merge_chunks(_dir)
+    for _prefix in prefixes:
+        _dir = os.path.join(cwd, _prefix)
+        os.chdir(_dir)
+        merge_chunks(_dir)
 
     time_finished = datetime.datetime.now()
     time_spend = time_finished - time_started
