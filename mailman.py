@@ -388,7 +388,7 @@ def download():
     subjects = subjects_inbox()
     prefixes = []
     for _subject in subjects:
-        res = re.search(r'\[(.*)\].*\.(\d{6})', _subject)
+        res = re.search(r'\[(.*)\].*\.(\d{6})$', _subject)
         if res:
             prefix = res.group(1)
             prefixes.append(prefix)
