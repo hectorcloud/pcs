@@ -101,11 +101,18 @@ def files2send(_dir):
     os.chdir(workdir)
 
     files2upload = [os.path.relpath(_file, workdir) for _file in files2upload]
+    files2upload.sort(key=os.path.getsize)
     # archive each file then delete it
     # each file will be archived separately.
     # Benefit is to preserve non-ascii file|dir name in archive.
     # archive itself is named by its SHA1 whose characters are ascii.
     # not all into a single file due to file size limit in OS
+    #
+    # April 06, 2016
+    # archive small files together because gmail has restriction on mail sending
+    # numbers within a period.
+    files2upload_final = []
+    group = []
     for idx, _file in enumerate(files2upload, start=0):
         _base = os.path.basename(_file)
         # already archived such as last round upload
@@ -120,31 +127,62 @@ def files2send(_dir):
             if tarname == _base:
                 # move to top level in order to handle non-ascii character in file|dir name
                 os.rename(_file, tarname)
-                files2upload[idx] = tarname
+                # files2upload[idx] = tarname
+                files2upload_final.append(tarname)
                 continue
-
-        sha1 = hashlib.sha1()
-        # sha1 of original file name as temporary name
-        sha1.update(_file.encode(sysencode, 'surrogateescape'))
-        tmpname = sha1.hexdigest()
-        tar = tarfile.open(tmpname, "w")
-        tar.add(_file)
-        tar.close()
-        os.remove(_file)
-        # sha1 of file content as file name
-        sha1 = hashlib.sha1()
-        with open(tmpname, "rb") as fd:
-            for chunk in iter(lambda: fd.read(1*1024*1024), b''):
-                sha1.update(chunk)
-        tarname = sha1.hexdigest()
-        # at top level
-        os.rename(tmpname, tarname)
-        files2upload[idx] = tarname
+        group_size = sum([os.path.getsize(x) for x in group])
+        if group_size + os.path.getsize(_file) < chunksize:
+            group.append(_file)
+            continue
+        if group:
+            sha1 = hashlib.sha1()
+            # sha1 of first file name in group as temporary name
+            sha1.update(group[0].encode(sysencode, 'surrogateescape'))
+            tmpname = sha1.hexdigest()
+            tar = tarfile.open(tmpname, "w")
+            for f in group:
+                tar.add(f)
+                os.remove(f)
+            tar.close()
+            # sha1 of file content as file name
+            sha1 = hashlib.sha1()
+            with open(tmpname, "rb") as fd:
+                for chunk in iter(lambda: fd.read(1*1024*1024), b''):
+                    sha1.update(chunk)
+            tarname = sha1.hexdigest()
+            # at top level
+            os.rename(tmpname, tarname)
+            # files2upload[idx] = tarname
+            files2upload_final.append(tarname)
+        # new group, next round
+        group.clear()
+        group.append(_file)
+    else:
+        if group:
+            sha1 = hashlib.sha1()
+            # sha1 of first file name in group as temporary name
+            sha1.update(group[0].encode(sysencode, 'surrogateescape'))
+            tmpname = sha1.hexdigest()
+            tar = tarfile.open(tmpname, "w")
+            for f in group:
+                tar.add(f)
+                os.remove(f)
+            tar.close()
+            # sha1 of file content as file name
+            sha1 = hashlib.sha1()
+            with open(tmpname, "rb") as fd:
+                for chunk in iter(lambda: fd.read(1*1024*1024), b''):
+                    sha1.update(chunk)
+            tarname = sha1.hexdigest()
+            # at top level
+            os.rename(tmpname, tarname)
+            # files2upload[idx] = tarname
+            files2upload_final.append(tarname)
     # absolute path recovery
-    files2upload = [os.path.join(workdir, _file) for _file in files2upload]
-    files2upload.sort()
+    files2upload_final = [os.path.join(workdir, _file) for _file in files2upload_final]
+    files2upload_final.sort()
 
-    return files2upload
+    return files2upload_final
 
 
 def sendByEmail(subjectPrefix, _file):
@@ -211,7 +249,20 @@ def sendByEmail(subjectPrefix, _file):
             fd.seek(idx*chunksize, 0)
             data = fd.read(chunksize)
             data = obfuscatebytes(data)
-        sendByChunk(chunk, data)
+        # try until success
+        ctr = 0
+        while True:
+            try:
+                sendByChunk(chunk, data)
+            # smtplib.SMTPServerDisconnected
+            # smtplib.SMTPSenderRefused
+            except Exception as e:
+                ctr += 1
+                print(e)
+                print('try again after {t} seconds'.format(t=str(ctr*60)))
+                time.sleep(ctr * 60)
+            else:
+                break
 
 
 def upload():
@@ -250,6 +301,7 @@ def upload():
     upload_speed = total_size // (time_spend.total_seconds()*1024)
     print("start: " + time_started.strftime("%Y-%m-%d %H:%M:%S"))
     print("finished: " + time_finished.strftime("%Y-%m-%d %H:%M:%S"))
+    print("transfer size: " + str(total_size) + " bytes")
     print("spent: " + str(time_spend))
     print("speed: " + str(upload_speed) + " kps")
 
@@ -388,7 +440,7 @@ def download():
     subjects = subjects_inbox()
     prefixes = []
     for _subject in subjects:
-        res = re.search(r'\[(.*)\].*\.(\d{6})', _subject)
+        res = re.search(r'\[(.*)\].*\.(\d{6})$', _subject)
         if res:
             prefix = res.group(1)
             prefixes.append(prefix)
@@ -442,6 +494,7 @@ def download():
                         fp.write(data)
                         fp.close()
                         total_size += len(data)
+                        del data
                         print("download finished: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
             M.close()
         else:
@@ -462,6 +515,7 @@ def download():
     upload_speed = total_size // (time_spend.total_seconds()*1024)
     print("start: " + time_started.strftime("%Y-%m-%d %H:%M:%S"))
     print("finished: " + time_finished.strftime("%Y-%m-%d %H:%M:%S"))
+    print("transfer size: " + str(total_size) + " bytes")
     print("spent: " + str(time_spend))
     print("speed: " + str(upload_speed) + " kps")
 
@@ -514,7 +568,7 @@ def _delete_sent_mail():
     delete mails in the folder
     :return:
     """
-    for mb in ['[Gmail]/Sent Mail', '[Gmail]/All Mail', '[Gmail]/Trash']:
+    for mb in ['INBOX', '[Gmail]/All Mail', '[Gmail]/Sent Mail', '[Gmail]/Spam', '[Gmail]/Trash']:
         M = imaplib.IMAP4_SSL(sender['IMAP'], 993)
         real_name, email_address = parseaddr(sender['From'])
         username = email_address
