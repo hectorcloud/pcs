@@ -103,4 +103,4 @@ Do not tar all the files into a single tarfile. Very big files(many GB) are not 
 Integrity check is helped by SHA1. SHA1 is the filename of each tarfile when storing in cloud. In addition to SHA1, simple encryption is also introduced.
 
 ####version 2.2
-Baidu do NOT support 'Range: bytes=0-99' anymore when downloading. Reducing chunksize to 240K so that it's possible to download one complete file at at time.
+Baidu do NOT support 'Range: bytes=0-99' anymore when downloading. Reducing chunksize to 240K so that it's possible to download one complete file at a time.
