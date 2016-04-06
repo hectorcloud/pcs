@@ -11,7 +11,7 @@ upload each file chunk by chunk whose size is 1M.
 
 download each chunk and merge them together when all chunks are downloaded.
 
-tar each file(Note: not tar all the files together, otherwise a very file will be introduced) to handle non ascii characters in directory and filenames indirectly. Python can contain directory and filenames in tar file and handle non ascii characters, so we do need to take additional effort to deal with non ascii characters in directory and filenames. The name of each tarfile is its SHA1.
+tar each file(Note: not tar all the files together, otherwise a very big file will be introduced) to handle non ascii characters in directory and filenames indirectly. Python can contain directory and filenames in tar file and handle non ascii characters, so we do need to take additional effort to deal with non ascii characters in directory and filenames. The name of each tarfile is its SHA1.
 
 very simple encryption introduced. It's symmetric.
 
@@ -103,4 +103,4 @@ Do not tar all the files into a single tarfile. Very big files(many GB) are not 
 Integrity check is helped by SHA1. SHA1 is the filename of each tarfile when storing in cloud. In addition to SHA1, simple encryption is also introduced.
 
 ####version 2.2
-Baidu do NOT support 'Range: bytes=0-99' anymore when downloading. Reducing chunksize to 64K so that it's possible to download one complete file at at time.
+Baidu do NOT support 'Range: bytes=0-99' anymore when downloading. Reducing chunksize to 240K so that it's possible to download one complete file at a time.
