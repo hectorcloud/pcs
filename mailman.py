@@ -34,8 +34,7 @@ from email.parser import HeaderParser
 
 # email accounts
 sender = {
-    'From': formataddr(("Hector Cloud", "***@gmail.com")),
-    'To': COMMASPACE.join(["***@163.com"]),
+    'Email': '***@gmail.com',
     'SMTP': 'smtp.gmail.com',
     'IMAP': 'imap.gmail.com',
     'Password': '***',
@@ -43,6 +42,7 @@ sender = {
 receiver = {
     # http://stackoverflow.com/questions/27797705/python-login-163-mail-server
     'Email': '***@163.com',
+    'SMTP': 'smtp.163.com',
     'IMAP': 'imap.163.com',
     'Password': '***'
 }
@@ -195,11 +195,13 @@ def sendByEmail(subjectPrefix, _file):
     """
     # name is as <file.000000>; content is octet stream
     def sendByChunk(name, content):
+        # start to upload
         print("upload start [{prefix}/{chunk}]".format(prefix=subjectPrefix, chunk=name))
+
         # Create the enclosing (outer) message
         outer = MIMEMultipart()
-        outer['From'] = sender['From']
-        outer['To'] = sender['To']
+        outer['From'] = formataddr(("Mr. Mailman", sender['Email']))
+        outer['To'] = COMMASPACE.join([receiver['Email']])
         outer['Subject'] = Header('[{subjectPrefix}]{fn}'.format(subjectPrefix=subjectPrefix, fn=name), 'utf-8').encode()
         outer['Date'] = formatdate(localtime=1)
         outer.preamble = 'You will not see this in a MIME-aware mail reader.\n'
@@ -232,8 +234,7 @@ def sendByEmail(subjectPrefix, _file):
         except smtplib.SMTPException as e:
             pass
             # print(e)
-        real_name, email_address = parseaddr(outer['From'])
-        username = email_address
+        username = sender['Email']
         smtpGmail.login(username, sender['Password'])
         # send message
         smtpGmail.send_message(outer)
@@ -570,8 +571,7 @@ def _delete_sent_mail():
     """
     for mb in ['INBOX', '[Gmail]/All Mail', '[Gmail]/Sent Mail', '[Gmail]/Spam', '[Gmail]/Trash']:
         M = imaplib.IMAP4_SSL(sender['IMAP'], 993)
-        real_name, email_address = parseaddr(sender['From'])
-        username = email_address
+        username = sender['Email']
         M.login(username, sender['Password'])
         rv, data = M.select(mailbox=M._quote(mb))
         if rv == 'OK':
