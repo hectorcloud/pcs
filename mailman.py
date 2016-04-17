@@ -587,12 +587,16 @@ def _delete_sent_mail():
                 if rv != 'OK':
                     print("ERROR getting message {uid}: {rv}".format(uid=str(uid), rv=rv))
                     continue
-                header_data = _data[0][1].decode('utf-8')
-                parser = HeaderParser()
-                msg = parser.parsestr(header_data)
-                hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
-                _subject = str(hdr)
-                print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject).encode())
+                # avoid decode error
+                try:
+                    header_data = _data[0][1].decode('utf-8')
+                    parser = HeaderParser()
+                    msg = parser.parsestr(header_data)
+                    hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
+                    _subject = str(hdr)
+                    print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject).encode())
+                except Exception as e:
+                    pass
                 uid2delete.append(uid.decode())
             for _uid in uid2delete:
                 M.uid('store', _uid, '+FLAGS', '\\Deleted')
