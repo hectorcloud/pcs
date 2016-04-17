@@ -34,6 +34,7 @@ from email.parser import HeaderParser
 
 # email accounts
 sender = {
+    # https://www.google.com/settings/security/lesssecureapps, please 'turn on'
     'Email': '***@gmail.com',
     'SMTP': 'smtp.gmail.com',
     'IMAP': 'imap.gmail.com',
