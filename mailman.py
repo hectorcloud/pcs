@@ -61,7 +61,9 @@ if isWindows and sysencode == 'mbcs':
 # obfuscate bytes data stream
 def obfuscatebytes(data):
     # XOR with 1010-0101
-    obdata = [byte ^ 0xA5 for byte in data]
+    obdata = bytearray(data)
+    for i in len(obdata):
+        obdata[i] ^= 0xA5
     obdata = bytes(obdata)
     return obdata
 
