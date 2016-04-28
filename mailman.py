@@ -62,7 +62,7 @@ if isWindows and sysencode == 'mbcs':
 def obfuscatebytes(data):
     # XOR with 1010-0101
     obdata = bytearray(data)
-    for i in len(obdata):
+    for i in range(len(obdata)):
         obdata[i] ^= 0xA5
     obdata = bytes(obdata)
     return obdata
