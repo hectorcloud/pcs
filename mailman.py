@@ -322,7 +322,7 @@ def subjects_inbox():
 
     # mail folders
     t = M.list()
-    print(t)
+    # print(t)
 
     mb = 'INBOX'
     rv, data = M.select(mailbox=M._quote(mb))
@@ -335,7 +335,8 @@ def subjects_inbox():
         for uid in uids.split():
             rv, _data = M.uid('fetch', uid, '(BODY.PEEK[HEADER])')
             if rv != 'OK':
-                print("ERROR getting message {uid}: {rv}".format(uid=str(uid), rv=rv))
+                # Fetch volume limit exceed. Please try next day
+                print("ERROR getting message {uid}: {rv} {_data}".format(uid=str(uid), rv=rv, _data=_data))
                 continue
             header_data = _data[0][1].decode('utf-8')
             parser = HeaderParser()
@@ -427,7 +428,7 @@ def merge_chunks(_dir):
 
 def download():
     """
-    download from @163.com
+    download from email@163.com
     1. list what to download, let user choose
     2. download attachment of emails contain the prefix. decryption is done when saving.
     3. delete mails in INBOX
@@ -435,6 +436,8 @@ def download():
     :return:
     """
     time_started = datetime.datetime.now()
+    # traffic quota
+    print("traffic quota for email@163.com is around 2,336,408,719 bytes every day.")
     cwd = os.getcwd()
     # how many bytes to download?
     total_size = 0
