@@ -501,7 +501,7 @@ def download():
                 filename = res.group(2)
                 if os.path.exists(filename):
                     if os.path.getsize(filename) == chunksize:
-                        print("download before: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
+                        print("downloaded before: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
                         continue
 
                 rv, _data = M.uid('fetch', uid, '(RFC822)')
