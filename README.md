@@ -5,12 +5,6 @@ This utility is to upload|download to|from Baidu PCS.
 
 ---
 
-####Baidu is very evil. Do not trust any product it provides.
-
-May 22, 2016
-
----
-
 ###basic thought:
 
 upload each file chunk by chunk whose size is 1M. 
@@ -53,12 +47,6 @@ upload each file chunk by chunk and encrypt each chunk just before uploading.
 
 ---
 
-###misc:
-
-One day Baidu may not provide|support its API which is used in this project. What will we do then? One possible way is to exploit mail services provided by `mail.163.com` and others. We can upload each chunk of each file as attachment when sending email by SMTP and download each chunk of each file when receiving eamil by IMAP.
-
----
-
 ###usage example:
 ####\#python main.py token
 please copy url below to browser address to get Authorization Code
@@ -90,6 +78,22 @@ remote dir: .
 
 ####\#python main.py delete
 remote dir: 1118pcs
+
+---
+
+###misc:
+
+One day Baidu may not provide|support its API which is used in this project. 
+
+What will we do then? 
+
+One possible way is to exploit mail services provided by `mail.163.com` and others. We can upload each chunk of each file as attachment when sending email by SMTP and download each chunk of each file when receiving eamil by IMAP.
+
+---
+
+####Baidu is very evil. Do not trust any product it provides.
+
+May 22, 2016
 
 ---
 
