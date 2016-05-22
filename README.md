@@ -3,6 +3,8 @@ Personal Cloud Storage provided by Baidu
 
 This utility is to upload|download to|from Baidu PCS.
 
+###Baidu is very evil. Do not trust any product it provides.
+
 ---
 
 ###basic thought:
