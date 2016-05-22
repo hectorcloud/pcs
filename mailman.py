@@ -337,7 +337,8 @@ def subjects_inbox():
         for uid in uids.split():
             rv, _data = M.uid('fetch', uid, '(BODY.PEEK[HEADER])')
             if rv != 'OK':
-                # Fetch volume limit exceed. Please try next day
+                # Fetch volume limit exceed.
+                # Please try next day
                 print("ERROR getting message {uid}: {rv} {_data}".format(uid=str(uid), rv=rv, _data=_data))
                 continue
             header_data = _data[0][1].decode('utf-8')
@@ -439,7 +440,7 @@ def download():
     """
     time_started = datetime.datetime.now()
     # traffic quota
-    print("traffic quota for email@163.com is around 2,336,408,719 bytes every day.")
+    print("traffic quota for email@163.com is around 3G every day.")
     cwd = os.getcwd()
     # how many bytes to download?
     total_size = 0
@@ -458,7 +459,7 @@ def download():
         _dir = os.path.join(cwd, _prefix)
         if os.path.isfile(_dir):
             print("cannot create [{_dir}] because a file has the same name".format(_dir=_prefix))
-            exit(1)
+            exit()
         if not os.path.exists(_dir):
             os.mkdir(_dir)
 
@@ -476,15 +477,42 @@ def download():
                 continue
             uids = data[0]
             for uid in uids.split():
+                # whether downloaded or not?
+                rv, _data = M.uid('fetch', uid, '(BODY.PEEK[HEADER])')
+                if rv != 'OK':
+                    # Fetch volume limit exceed. Please try next day
+                    print("ERROR getting message {uid}: {rv} {_data}".format(uid=str(uid), rv=rv, _data=_data))
+                    continue
+                header_data = _data[0][1].decode('utf-8')
+                parser = HeaderParser()
+                msg = parser.parsestr(header_data)
+                hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
+                _subject = str(hdr)
+                # subject pattern: phase 1
+                if not _subject.startswith('[' + _prefix + ']'):
+                    continue
+                # subject pattern: phase 2
+                res = re.search(r'\[(.*)\](.*\.(\d{6}))$', _subject)
+                if not res:
+                    continue
+                # already downloaded
+                # algorithm: (1) file exists; (2) size equals chunksize
+                # traits: not perfect but useful
+                filename = res.group(2)
+                if os.path.exists(filename):
+                    if os.path.getsize(filename) == chunksize:
+                        print("download before: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
+                        continue
+
                 rv, _data = M.uid('fetch', uid, '(RFC822)')
                 if rv != 'OK':
                     print("ERROR getting message {uid}".format(uid=str(uid)))
                     continue
                 mail = email.message_from_bytes(_data[0][1])
-                hdr = email.header.make_header(email.header.decode_header(mail['Subject']))
-                _subject = str(hdr)
-                if not _subject.startswith('[' + _prefix + ']'):
-                    continue
+                # hdr = email.header.make_header(email.header.decode_header(mail['Subject']))
+                # _subject = str(hdr)
+                # if not _subject.startswith('[' + _prefix + ']'):
+                #     continue
                 for part in mail.walk():
                     if part.get_content_maintype() == 'multipart':
                         continue
@@ -508,23 +536,30 @@ def download():
             print("ERROR: unable to open INBOX. " + rv)
         M.logout()
 
+        # merge chunks, MUST before mail deletion to guarantee download is finished.
+        M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
+        M.login(receiver['Email'], receiver['Password'])
+        rv, data = M.select(mailbox='INBOX')
+        if rv == 'OK':
+            rv, data = M.uid('search', None, "ALL")
+            if rv == 'OK':
+                uids = data[0]
+                uid = uids.split()[0]
+                rv, _data = M.uid('fetch', uid, '(BODY.PEEK[HEADER])')
+                if rv == 'OK':
+                    merge_chunks(_dir)
+
         # delete mail in INBOX
         _delete_inbox_mail(_prefix)
 
-    # merge chunks
-    for _prefix in prefixes:
-        _dir = os.path.join(cwd, _prefix)
-        os.chdir(_dir)
-        merge_chunks(_dir)
-
     time_finished = datetime.datetime.now()
     time_spend = time_finished - time_started
-    upload_speed = total_size // (time_spend.total_seconds()*1024)
+    download_speed = total_size // (time_spend.total_seconds()*1024)
     print("start: " + time_started.strftime("%Y-%m-%d %H:%M:%S"))
     print("finished: " + time_finished.strftime("%Y-%m-%d %H:%M:%S"))
     print("transfer size: " + str(total_size) + " bytes")
     print("spent: " + str(time_spend))
-    print("speed: " + str(upload_speed) + " kps")
+    print("speed: " + str(download_speed) + " kps")
 
 
 def _delete_inbox_mail(_prefix):
@@ -533,8 +568,7 @@ def _delete_inbox_mail(_prefix):
     :param prefix: subject prefix
     :return:
     """
-    # cannot delete mail in '?????'
-    for mb in ['INBOX', '&dcVr0mWHTvZZOQ-']:
+    for mb in ['INBOX']:
         M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
         M.login(receiver['Email'], receiver['Password'])
         rv, data = M.select(mailbox=mb)
