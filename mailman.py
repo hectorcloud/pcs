@@ -440,7 +440,7 @@ def download():
     """
     time_started = datetime.datetime.now()
     # traffic quota
-    print("traffic quota for email@163.com is around 3G every day.")
+    print("traffic quota for email@163.com is around 3 GiB every day.")
     cwd = os.getcwd()
     # how many bytes to download?
     total_size = 0
