@@ -302,7 +302,9 @@ def upload():
 
     time_finished = datetime.datetime.now()
     time_spend = time_finished - time_started
-    upload_speed = total_size // (time_spend.total_seconds()*1024)
+    upload_speed = 0
+    if time_spend.total_seconds() > 0:
+        upload_speed = total_size // (time_spend.total_seconds()*1024)
     print("start: " + time_started.strftime("%Y-%m-%d %H:%M:%S"))
     print("finished: " + time_finished.strftime("%Y-%m-%d %H:%M:%S"))
     print("transfer size: " + str(total_size) + " bytes")
@@ -659,3 +661,4 @@ if __name__ == "__main__":
         download()
     else:
         print("not supported argument")
+
