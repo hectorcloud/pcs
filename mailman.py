@@ -1,7 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-upload file by sending email
+upload|download file by sending|receiving email
+
+tested under Python 2.x and 3.x
 
 Date: 2016-03-21
 """
@@ -32,6 +34,12 @@ from email import encoders
 from email.parser import HeaderParser
 
 
+if sys.version[0] == '2':
+    global input
+    input = raw_input
+    global range
+    range = xrange
+    
 # email accounts
 sender = {
     # https://www.google.com/settings/security/lesssecureapps, please 'turn on'
@@ -89,7 +97,7 @@ def files2send(_dir):
             if r"/." in _file or r"\." in _file:
                 continue
             # add to upload list
-            files2upload.append(_file)
+            files2upload.append(os.path.abspath(_file))
     # delete unwanted files
     for _file in files2delete:
         os.remove(_file)
@@ -158,7 +166,8 @@ def files2send(_dir):
             # files2upload[idx] = tarname
             files2upload_final.append(tarname)
         # new group, next round
-        group.clear()
+        #group.clear()
+        del group[:]
         group.append(_file)
     else:
         if group:
@@ -240,7 +249,10 @@ def sendByEmail(subjectPrefix, _file):
         username = sender['Email']
         smtpGmail.login(username, sender['Password'])
         # send message
-        smtpGmail.send_message(outer)
+        if sys.version[0] == '2':
+            smtpGmail.sendmail(sender['Email'], outer['To'], outer.as_string())        
+        if sys.version[0] == '3':
+            smtpGmail.send_message(outer)
         smtpGmail.quit()
         # successful
         print("upload finished [{prefix}/{chunk}]".format(prefix=subjectPrefix, chunk=name))
@@ -346,8 +358,8 @@ def subjects_inbox():
             header_data = _data[0][1].decode('utf-8')
             parser = HeaderParser()
             msg = parser.parsestr(header_data)
-            hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
-            _subject = str(hdr)
+            hdr = email.header.decode_header(msg['Subject'])
+            _subject = hdr[0][0].decode()
             print(('{mb}: ' + _subject).format(mb=mb).encode())
             subjects.append(_subject)
         M.close()
@@ -367,7 +379,7 @@ def merge_chunks(_dir):
             file2merge.append(_file)
     file2merge.sort()
     # recover file name by strip '.000001' ending
-    filenames = [fn[:-7] for fn in file2merge if re.fullmatch(r"\.\d{6}", fn[-7:])]
+    filenames = [fn[:-7] for fn in file2merge if re.match(r"\.\d{6}", fn[-7:])]
     filenames = set(filenames)
     filenames = list(filenames)
     filenames.sort()
@@ -377,7 +389,7 @@ def merge_chunks(_dir):
     for fn in filenames:
         chunks = []
         for chunk in file2merge:
-            if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-7:]):
+            if (fn == chunk[:-7]) and re.match(r"\.\d{6}", chunk[-7:]):
                 chunks.append(chunk)
         # each chunk is of same size except last one for each file
         # cardinality is continuous
@@ -407,7 +419,7 @@ def merge_chunks(_dir):
     for fn in filenames:
         print("info: merge file {}".format(fn))
         for chunk in file2merge:
-            if (fn == chunk[:-7]) and re.fullmatch(r"\.\d{6}", chunk[-7:]):
+            if (fn == chunk[:-7]) and re.match(r"\.\d{6}", chunk[-7:]):
                 with open(chunk, "rb") as fd:
                     data = fd.read()
                     with open(fn, "ab") as _fd:
@@ -488,8 +500,8 @@ def download():
                 header_data = _data[0][1].decode('utf-8')
                 parser = HeaderParser()
                 msg = parser.parsestr(header_data)
-                hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
-                _subject = str(hdr)
+                hdr = email.header.decode_header(msg['Subject'])
+                _subject = hdr[0][0].decode()
                 # subject pattern: phase 1
                 if not _subject.startswith('[' + _prefix + ']'):
                     continue
@@ -510,9 +522,13 @@ def download():
                 if rv != 'OK':
                     print("ERROR getting message {uid}".format(uid=str(uid)))
                     continue
-                mail = email.message_from_bytes(_data[0][1])
-                # hdr = email.header.make_header(email.header.decode_header(mail['Subject']))
-                # _subject = str(hdr)
+                mail = None
+                if sys.version[0] == '2':
+                    mail = email.message_from_string(_data[0][1])
+                if sys.version[0] == '3':
+                    mail = email.message_from_bytes(_data[0][1])
+                # hdr = email.header.decode_header(mail['Subject'])
+                # _subject = hdr[0][0].decode()
                 # if not _subject.startswith('[' + _prefix + ']'):
                 #     continue
                 for part in mail.walk():
@@ -589,14 +605,14 @@ def _delete_inbox_mail(_prefix):
                 header_data = _data[0][1].decode('utf-8')
                 parser = HeaderParser()
                 msg = parser.parsestr(header_data)
-                hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
-                _subject = str(hdr)
+                hdr = email.header.decode_header(msg['Subject'])
+                _subject = hdr[0][0].decode()
                 if not _subject.startswith('[' + _prefix + ']'):
                     continue
                 uid2delete.append((uid.decode(), _subject))
             for _uid, _subject in uid2delete:
                 print("delete {_uid}: {_subject}".format(_uid=_uid, _subject=_subject))
-                M.uid('store', _uid, '+FLAGS', '\\Deleted')
+                M.uid('store', _uid, '+FLAGS', '(\\Deleted)')
             M.expunge()
             M.close()
         else:
@@ -633,14 +649,14 @@ def _delete_sent_mail():
                     header_data = _data[0][1].decode('utf-8')
                     parser = HeaderParser()
                     msg = parser.parsestr(header_data)
-                    hdr = email.header.make_header(email.header.decode_header(msg['Subject']))
-                    _subject = str(hdr)
+                    hdr = email.header.decode_header(msg['Subject'])
+                    _subject = hdr[0][0].decode()
                     print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject).encode())
                 except Exception as e:
                     pass
                 uid2delete.append(uid.decode())
             for _uid in uid2delete:
-                M.uid('store', _uid, '+FLAGS', '\\Deleted')
+                M.uid('store', _uid, '+FLAGS', '(\\Deleted)')
             M.expunge()
             M.close()
         else:
