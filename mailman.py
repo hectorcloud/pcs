@@ -14,6 +14,7 @@ import hashlib
 import datetime
 import tarfile
 import time
+import subprocess
 import mimetypes
 import getpass
 import smtplib
@@ -212,7 +213,7 @@ def sendByEmail(subjectPrefix, _file):
 
         # Create the enclosing (outer) message
         outer = MIMEMultipart()
-        outer['From'] = formataddr(("Mr. Mailman", sender['Email']))
+        outer['From'] = formataddr(("Mr. Alpha", sender['Email']))
         outer['To'] = COMMASPACE.join([receiver['Email']])
         outer['Subject'] = Header('[{subjectPrefix}]{fn}'.format(subjectPrefix=subjectPrefix, fn=name), 'utf-8').encode()
         outer['Date'] = formatdate(localtime=1)
@@ -322,7 +323,25 @@ def upload():
     print("transfer size: " + str(total_size) + " bytes")
     print("spent: " + str(time_spend))
     print("speed: " + str(upload_speed) + " kps")
-
+    
+    # KiwiVM has some disadvantages. reboot if uploading large volume data.
+    # http://stackoverflow.com/questions/3797958/how-to-write-script-output-to-file-and-command-line
+    if total_size > 0:
+        # delete directory|files which were uploaded
+        # http://stackoverflow.com/questions/11025784/calling-rm-from-subprocess-using-wildcards-does-not-remove-the-files
+        p = subprocess.Popen(['rm -rf /root/*'], shell=True)
+        p.wait()
+        # backup log file from screen.alpha to screen.beta
+        if os.path.exists("/tmp/screen.alpha"):
+            p = subprocess.Popen(['cp', '-f', '/tmp/screen.alpha', '/tmp/screen.beta'])
+            p.wait()
+        p = subprocess.Popen(['reboot'])
+        p.wait()
+    # show content of /tmp/screen.beta which is backup of /tmp/screen.alpha
+    else:
+        if os.path.exists('/tmp/screen.beta'):
+            for line in open('/tmp/screen.beta'):
+                print(line)
 
 def subjects_inbox():
     """
@@ -359,7 +378,7 @@ def subjects_inbox():
             parser = HeaderParser()
             msg = parser.parsestr(header_data)
             hdr = email.header.decode_header(msg['Subject'])
-            _subject = hdr[0][0].decode()
+            _subject = hdr[0][0].decode(hdr[0][1])
             print(('{mb}: ' + _subject).format(mb=mb).encode())
             subjects.append(_subject)
         M.close()
@@ -501,7 +520,7 @@ def download():
                 parser = HeaderParser()
                 msg = parser.parsestr(header_data)
                 hdr = email.header.decode_header(msg['Subject'])
-                _subject = hdr[0][0].decode()
+                _subject = hdr[0][0].decode(hdr[0][1])
                 # subject pattern: phase 1
                 if not _subject.startswith('[' + _prefix + ']'):
                     continue
@@ -528,7 +547,7 @@ def download():
                 if sys.version[0] == '3':
                     mail = email.message_from_bytes(_data[0][1])
                 # hdr = email.header.decode_header(mail['Subject'])
-                # _subject = hdr[0][0].decode()
+                # _subject = hdr[0][0].decode(hdr[0][1])
                 # if not _subject.startswith('[' + _prefix + ']'):
                 #     continue
                 for part in mail.walk():
@@ -606,7 +625,7 @@ def _delete_inbox_mail(_prefix):
                 parser = HeaderParser()
                 msg = parser.parsestr(header_data)
                 hdr = email.header.decode_header(msg['Subject'])
-                _subject = hdr[0][0].decode()
+                _subject = hdr[0][0].decode(hdr[0][1])
                 if not _subject.startswith('[' + _prefix + ']'):
                     continue
                 uid2delete.append((uid.decode(), _subject))
@@ -650,7 +669,7 @@ def _delete_sent_mail():
                     parser = HeaderParser()
                     msg = parser.parsestr(header_data)
                     hdr = email.header.decode_header(msg['Subject'])
-                    _subject = hdr[0][0].decode()
+                    _subject = hdr[0][0].decode(hdr[0][1])
                     print("delete {mb}: {_subject}".format(mb=mb, _subject=_subject).encode())
                 except Exception as e:
                     pass
