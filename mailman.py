@@ -324,24 +324,16 @@ def upload():
     print("spent: " + str(time_spend))
     print("speed: " + str(upload_speed) + " kps")
     
-    # KiwiVM has some disadvantages. reboot if uploading large volume data.
+    # KiwiVM has some disadvantages. It's related to system buff/cache.
+    # delete directory|files which were uploaded.
+    # I don't know how to resolved it by other means except deletion.
     # http://stackoverflow.com/questions/3797958/how-to-write-script-output-to-file-and-command-line
     if total_size > 0:
         # delete directory|files which were uploaded
         # http://stackoverflow.com/questions/11025784/calling-rm-from-subprocess-using-wildcards-does-not-remove-the-files
         p = subprocess.Popen(['rm -rf /root/*'], shell=True)
         p.wait()
-        # backup log file from screen.alpha to screen.beta
-        if os.path.exists("/tmp/screen.alpha"):
-            p = subprocess.Popen(['cp', '-f', '/tmp/screen.alpha', '/tmp/screen.beta'])
-            p.wait()
-        p = subprocess.Popen(['reboot'])
-        p.wait()
-    # show content of /tmp/screen.beta which is backup of /tmp/screen.alpha
-    else:
-        if os.path.exists('/tmp/screen.beta'):
-            for line in open('/tmp/screen.beta'):
-                print(line)
+
 
 def subjects_inbox():
     """
