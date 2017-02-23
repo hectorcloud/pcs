@@ -149,7 +149,10 @@ def files2send(_dir):
         if group:
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
-            sha1.update(group[0].encode(sysencode, 'surrogateescape'))
+            if sys.version[0] == '2':
+                sha1.update(group[0])
+            else:
+                sha1.update(group[0].encode(sysencode, 'surrogateescape'))
             tmpname = sha1.hexdigest()
             tar = tarfile.open(tmpname, "w")
             for f in group:
@@ -174,7 +177,10 @@ def files2send(_dir):
         if group:
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
-            sha1.update(group[0].encode(sysencode, 'surrogateescape'))
+            if sys.version[0] == '2':
+                sha1.update(group[0])
+            else:
+                sha1.update(group[0].encode(sysencode, 'surrogateescape'))
             tmpname = sha1.hexdigest()
             tar = tarfile.open(tmpname, "w")
             for f in group:
