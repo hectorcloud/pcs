@@ -87,6 +87,9 @@ def files2send(_dir):
     files2upload = []
     # unfinished of last round
     files2delete = []
+    # archive might be done last round, in that case,
+    # there is no need to do archive operation this round
+    archive_done_lastround = True
     for root, dirs, files in os.walk(_dir):
         for _file in files:
             _file = os.path.join(root, _file)
@@ -147,6 +150,8 @@ def files2send(_dir):
             group.append(_file)
             continue
         if group:
+            # archive of last round not finished yet
+            archive_done_lastround = False
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
             if sys.version[0] == '2':
@@ -175,6 +180,8 @@ def files2send(_dir):
         group.append(_file)
     else:
         if group:
+            # archive of last round not finished yet
+            archive_done_lastround = False
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
             if sys.version[0] == '2':
@@ -197,6 +204,10 @@ def files2send(_dir):
             os.rename(tmpname, tarname)
             # files2upload[idx] = tarname
             files2upload_final.append(tarname)
+    # there's some issue of VPS. just reboot to bypass it.
+    if not archive_done_lastround:
+        p = subprocess.Popen(['reboot'], shell=True)
+        p.wait()
     # absolute path recovery
     files2upload_final = [os.path.join(workdir, _file) for _file in files2upload_final]
     files2upload_final.sort()
