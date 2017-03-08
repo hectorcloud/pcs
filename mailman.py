@@ -308,6 +308,9 @@ def upload():
     uploadDir = input("directory|file to upload: ")
     subjectPrefix = input("mail subject prefix: ")
 
+    # working directory may change later
+    uploadDir = os.path.abspath(uploadDir)
+
     # delete all mails in 'Sent Mail' folder
     # avoid to excess quota
     _delete_sent_mail()
@@ -323,12 +326,6 @@ def upload():
     total_size = 0
     for _file in files2upload:
         total_size += os.path.getsize(_file)
-    # untar each file
-    for _file in files2upload:
-        tar = tarfile.open(_file, "r")
-        tar.extractall()
-        tar.close()
-        os.remove(_file)
 
     time_finished = datetime.datetime.now()
     time_spend = time_finished - time_started
@@ -348,7 +345,9 @@ def upload():
     if total_size > 0:
         # delete directory|files which were uploaded
         # http://stackoverflow.com/questions/11025784/calling-rm-from-subprocess-using-wildcards-does-not-remove-the-files
-        p = subprocess.Popen(['rm -rf /root/*'], shell=True)
+        if os.path.isdir(uploadDir):
+            uploadDir = os.path.join(uploadDir, '*')
+        p = subprocess.Popen(['rm -rf {uploadDir}'.format(uploadDir=uploadDir)], shell=True)
         p.wait()
 
 
