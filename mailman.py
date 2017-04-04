@@ -3,7 +3,7 @@
 """
 upload|download file by sending|receiving email
 
-tested under Python 2.x and 3.x
+fully tested under Python 2.x for upload and 3.x for download
 
 Date: 2016-03-21
 """
@@ -14,6 +14,7 @@ import hashlib
 import datetime
 import tarfile
 import time
+import shutil
 import subprocess
 import mimetypes
 import getpass
@@ -35,12 +36,6 @@ from email import encoders
 from email.parser import HeaderParser
 
 
-if sys.version[0] == '2':
-    global input
-    input = raw_input
-    global range
-    range = xrange
-    
 # email accounts
 sender = {
     # https://www.google.com/settings/security/lesssecureapps, please 'turn on'
@@ -57,8 +52,19 @@ receiver = {
     'Password': '***'
 }
 
+
+if sys.version[0] == '2':
+    global input
+    input = raw_input
+    global range
+    range = xrange
+
+
 # attachment size is 25M
 chunksize = 25*1024*1024
+# reserve memory to avoid out-of-memory
+BUFFER = bytearray(chunksize)
+
 
 # on Windows 'mbcs' means 'utf-8'
 sysencode = sys.getfilesystemencoding()
@@ -67,14 +73,12 @@ if isWindows and sysencode == 'mbcs':
     sysencode = 'utf-8'
 
 
-# obfuscate bytes data stream
+# obfuscate bytearray data stream
 def obfuscatebytes(data):
     # XOR with 1010-0101
-    obdata = bytearray(data)
-    for i in range(len(obdata)):
-        obdata[i] ^= 0xA5
-    obdata = bytes(obdata)
-    return obdata
+    for i in range(len(data)):
+        data[i] ^= 0xA5
+    return
 
 
 def files2send(_dir):
@@ -89,7 +93,6 @@ def files2send(_dir):
     files2delete = []
     # archive might be done last round, in that case,
     # there is no need to do archive operation this round
-    archive_done_lastround = True
     for root, dirs, files in os.walk(_dir):
         for _file in files:
             _file = os.path.join(root, _file)
@@ -151,7 +154,6 @@ def files2send(_dir):
             continue
         if group:
             # archive of last round not finished yet
-            archive_done_lastround = False
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
             if sys.version[0] == '2':
@@ -181,7 +183,6 @@ def files2send(_dir):
     else:
         if group:
             # archive of last round not finished yet
-            archive_done_lastround = False
             sha1 = hashlib.sha1()
             # sha1 of first file name in group as temporary name
             if sys.version[0] == '2':
@@ -204,10 +205,6 @@ def files2send(_dir):
             os.rename(tmpname, tarname)
             # files2upload[idx] = tarname
             files2upload_final.append(tarname)
-    # there's some issue of VPS. just reboot to bypass it.
-    if not archive_done_lastround:
-        p = subprocess.Popen(['reboot'], shell=True)
-        p.wait()
     # absolute path recovery
     files2upload_final = [os.path.join(workdir, _file) for _file in files2upload_final]
     files2upload_final.sort()
@@ -278,16 +275,19 @@ def sendByEmail(subjectPrefix, _file):
     size = os.path.getsize(_file)
     for idx in range((size + chunksize - 1) // chunksize):
         chunk = os.path.basename(_file) + "." + str(idx).zfill(6)
-        data = None
+        length = None
         with open(_file, "rb") as fd:
             fd.seek(idx*chunksize, 0)
-            data = fd.read(chunksize)
-            data = obfuscatebytes(data)
+            length = fd.readinto(BUFFER)
+            mv = memoryview(BUFFER)
+            # why not 'mv' here?
+            obfuscatebytes(BUFFER)            
         # try until success
         ctr = 0
         while True:
             try:
-                sendByChunk(chunk, data)
+                mv = memoryview(BUFFER)
+                sendByChunk(chunk, mv[:length])
             # smtplib.SMTPServerDisconnected
             # smtplib.SMTPSenderRefused
             except Exception as e:
@@ -345,10 +345,21 @@ def upload():
     if total_size > 0:
         # delete directory|files which were uploaded
         # http://stackoverflow.com/questions/11025784/calling-rm-from-subprocess-using-wildcards-does-not-remove-the-files
+        # file and directory to delete
+        files_to_delete = []
         if os.path.isdir(uploadDir):
-            uploadDir = os.path.join(uploadDir, '*')
-        p = subprocess.Popen(['rm -rf {uploadDir}'.format(uploadDir=uploadDir)], shell=True)
-        p.wait()
+            for f in os.listdir(uploadDir):
+                if f.startswith("."):
+                    continue
+                files_to_delete.append(os.path.abspath(f))
+        else:
+            files_to_delete.append(uploadDir)
+        # delete file and directory one by one
+        for f in files_to_delete:
+            if os.path.isfile(f):
+                os.remove(f)
+            else:
+                shutil.rmtree(f)
 
 
 def subjects_inbox():
@@ -569,12 +580,15 @@ def download():
                     filename = t[0][0].decode(t[0][1])
                     if filename:
                         fp = open(filename, 'wb')
+                        # data is of type bytes
                         data = part.get_payload(decode=True)
-                        data = obfuscatebytes(data)
+                        for idx, d in enumerate(data):
+                            BUFFER[idx] = d
+                        data = memoryview(BUFFER)[:len(data)]
+                        obfuscatebytes(data)
                         fp.write(data)
                         fp.close()
                         total_size += len(data)
-                        del data
                         print("download finished: [{_prefix}]{filename}".format(_prefix=_prefix, filename=filename))
             M.close()
         else:
