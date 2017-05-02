@@ -397,7 +397,7 @@ def subjects_inbox():
             parser = HeaderParser()
             msg = parser.parsestr(header_data)
             hdr = email.header.decode_header(msg['Subject'])
-            _subject = hdr[0][0].decode(hdr[0][1])
+            _subject = hdr[0][0] if type(hdr[0][0]) == type('str') else hdr[0][0].decode(hdr[0][1])
             print(('{mb}: ' + _subject).format(mb=mb).encode())
             subjects.append(_subject)
         M.close()
@@ -499,14 +499,23 @@ def download():
 
     subjects = subjects_inbox()
     prefixes = []
+    # advertisement mail
+    ads = []
     for _subject in subjects:
         res = re.search(r'\[(.*)\].*\.(\d{6})$', _subject)
         if res:
             prefix = res.group(1)
             prefixes.append(prefix)
+        else:
+            ads.append(_subject)
+            
+    # delete advertisement mail
+    for ad in ads:
+        _delete_inbox_mail2(ad)
+        
     prefixes = list(set(prefixes))
     prefixes.sort()
-
+    
     for _prefix in prefixes:
         _dir = os.path.join(cwd, _prefix)
         if os.path.isfile(_dir):
@@ -647,7 +656,7 @@ def _delete_inbox_mail(_prefix):
                 parser = HeaderParser()
                 msg = parser.parsestr(header_data)
                 hdr = email.header.decode_header(msg['Subject'])
-                _subject = hdr[0][0].decode(hdr[0][1])
+                _subject = hdr[0][0] if type(hdr[0][0]) == type('str') else hdr[0][0].decode(hdr[0][1])
                 if not _subject.startswith('[' + _prefix + ']'):
                     continue
                 uid2delete.append((uid.decode(), _subject))
@@ -661,6 +670,46 @@ def _delete_inbox_mail(_prefix):
         M.logout()
 
 
+def _delete_inbox_mail2(_subject):
+    """
+    delete INBOX @163.com based on mail subject
+    :param _subject: mail subject
+    :return:
+    """
+    for mb in ['INBOX']:
+        M = imaplib.IMAP4_SSL(receiver['IMAP'], 993)
+        M.login(receiver['Email'], receiver['Password'])
+        rv, data = M.select(mailbox=mb)
+        if rv == 'OK':
+            rv, data = M.uid('search', None, "ALL")
+            if rv != 'OK':
+                print("there is no message in {mb}".format(mb=mb))
+                return
+            uids = data[0]
+            uid2delete = []
+            for uid in uids.split():
+                rv, _data = M.uid('fetch', uid, '(BODY.PEEK[HEADER])')
+                if rv != 'OK':
+                    print("ERROR getting message {uid}: {rv}".format(uid=str(uid), rv=rv))
+                    continue
+                header_data = _data[0][1].decode('utf-8')
+                parser = HeaderParser()
+                msg = parser.parsestr(header_data)
+                hdr = email.header.decode_header(msg['Subject'])
+                subject = hdr[0][0] if type(hdr[0][0]) == type('str') else hdr[0][0].decode(hdr[0][1])
+                if subject != _subject:
+                    continue
+                uid2delete.append((uid.decode(), subject))
+            for _uid, subject in uid2delete:
+                print("delete {_uid}: {subject}".format(_uid=_uid, subject=subject))
+                M.uid('store', _uid, '+FLAGS', '(\\Deleted)')
+            M.expunge()
+            M.close()
+        else:
+            print("ERROR: unable to open {mb}. {rv}".format(mb=mb, rv=rv))
+        M.logout()
+        
+        
 def _delete_sent_mail():
     """
     delete sent mails @gmail.com
